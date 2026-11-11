@@ -139,15 +139,17 @@ python -m http.server 8000
 
 `build-apk.sh` 会把根目录的 `index.html` 同步进 `android/app/src/main/assets/` 再构建，输出覆盖根目录的 `便签.apk`。
 
-它从 `.toolchain/` 读工具链，需要这三样：
+脚本不依赖仓库内的任何工具链目录，直接从本机环境探测，需要这三样：
 
-| 路径 | 内容 |
+| 需要 | 说明 |
 | --- | --- |
-| `.toolchain/sdk-jdk` | JDK 17 |
-| `.toolchain/sdk` | Android SDK：`platforms;android-34`、`build-tools;34.0.0` |
-| `.toolchain/gradle-home/gradle-8.7` | Gradle 8.7 |
+| JDK 17+ | 必须是完整 JDK（带 `jlink`）。JRE、JetBrains JBR 这类精简运行时会在 `JdkImageTransform` 报错 |
+| Android SDK | 含 `platforms;android-34` 与 `build-tools;34.0.0`，用 `sdkmanager` 装 |
+| Gradle 8.7+ | 命令行 `gradle`，或 `~/.gradle/wrapper/dists` 里已下载的发行版（脚本会挑版本最高的） |
 
-这三样是本地下载的（约 868 MB），没有进仓库 —— 用 `sdkmanager` 装好后放到对应路径，或改 `build-apk.sh` 顶部的三个变量指向你的环境即可。
+探测顺序：`JAVA_HOME` / `ANDROID_HOME` 环境变量 → 常见安装路径（`C:\Program Files\Java\jdk-*`、`~/AndroidBuild/sdk`、`~/AppData/Local/Android/Sdk`）。找不到会直接说明缺哪一样，不会静默失败。
+
+构建完成后脚本会解出 APK 里的 `assets/index.html` 和根目录那份比 md5，不一致就报错 —— 避免"改了页面但打进旧版"。
 
 **签名**：仓库里不放签名密钥（`android/keystore/`、`*.jks` 都在 `.gitignore` 里）。自己生成一个：
 
