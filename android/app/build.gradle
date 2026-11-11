@@ -1,0 +1,55 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.notes.app'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.notes.app"
+        minSdk 26
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+    }
+
+    signingConfigs {
+        release {
+            storeFile file("../keystore/notes.jks")
+            storePassword "notes2026"
+            keyAlias "notes"
+            keyPassword "notes2026"
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            shrinkResources false
+            signingConfig signingConfigs.release
+        }
+        debug {
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    packagingOptions {
+        resources.excludes += ['META-INF/*']
+    }
+}
+
+/* 构建前把根目录的 index.html 拷进 assets，保证 APK 里永远是最新版 */
+tasks.register("syncWebAssets", Copy) {
+    from rootProject.file("../index.html")
+    into layout.projectDirectory.dir("src/main/assets")
+}
+
+afterEvaluate {
+    tasks.named("preBuild").configure { dependsOn("syncWebAssets") }
+}

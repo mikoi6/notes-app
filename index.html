@@ -1,0 +1,2459 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+<meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="便签" />
+<meta name="format-detection" content="telephone=no" />
+<title>便签</title>
+<style>
+/* ============================================================
+   1. 主题变量：只改这里就能换配色
+   ============================================================ */
+:root{
+  --bg:#f2f2f7;
+  --surface:#ffffff;
+  --surface-2:#ececf1;
+  --text:#1c1c1e;
+  --t2:#8a8a8e;
+  --line:rgba(60,60,67,.13);
+  --accent:#e8890c;
+  --soft:rgba(232,137,12,.12);
+  --danger:#ff3b30;
+  --shadow:0 1px 2px rgba(0,0,0,.05), 0 6px 18px rgba(0,0,0,.05);
+  --bar:rgba(242,242,247,.86);
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#000000;
+    --surface:#1c1c1e;
+    --surface-2:#2c2c2e;
+    --text:#f2f2f7;
+    --t2:#8e8e93;
+    --line:rgba(255,255,255,.11);
+    --accent:#ffa726;
+    --soft:rgba(255,167,38,.16);
+    --danger:#ff453a;
+    --shadow:0 1px 2px rgba(0,0,0,.45);
+    --bar:rgba(0,0,0,.78);
+  }
+}
+
+/* ============================================================
+   2. 基础
+   ============================================================ */
+*,*::before,*::after{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro SC","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  -webkit-font-smoothing:antialiased;
+  overflow:hidden;
+  overscroll-behavior:none;
+  font-size:16px;
+}
+button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer;-webkit-tap-highlight-color:transparent}
+input,textarea{font:inherit;color:inherit}
+h1,h2,h3,h4,p{margin:0}
+
+/* ============================================================
+   3. 骨架
+   ============================================================ */
+#app{
+  position:fixed; inset:0;
+  display:flex; flex-direction:column;
+  max-width:640px; margin:0 auto;
+  background:var(--bg);
+}
+.appbar{
+  flex:none;
+  position:relative; z-index:6;
+  display:grid;
+  grid-template-columns:88px 1fr 88px;
+  align-items:center;
+  padding:calc(env(safe-area-inset-top) + 6px) 6px 6px;
+  background:var(--bar);
+  -webkit-backdrop-filter:blur(20px) saturate(180%);
+  backdrop-filter:blur(20px) saturate(180%);
+  border-bottom:.5px solid var(--line);
+}
+.appbar h1{
+  font-size:17px; font-weight:600; letter-spacing:.2px;
+  text-align:center; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.appbar-right{display:flex; justify-content:flex-end}
+.appbar > .iconbtn{justify-self:start}
+.iconbtn{
+  width:40px; height:40px; border-radius:50%;
+  display:grid; place-items:center; color:var(--text);
+  transition:background .15s;
+  flex:none;
+}
+.iconbtn:active{background:var(--surface-2)}
+.iconbtn.on{color:var(--accent)}
+
+.searchbar{
+  position:absolute; inset:0; display:none; align-items:center; gap:8px;
+  padding:calc(env(safe-area-inset-top) + 6px) 12px 6px;
+  background:var(--bar);
+  -webkit-backdrop-filter:blur(20px); backdrop-filter:blur(20px);
+}
+.searchbar.on{display:flex}
+.searchbar input{
+  flex:1; min-width:0;
+  -webkit-appearance:none; appearance:none;
+  border:0; outline:none;
+  background:var(--surface-2);
+  border-radius:10px; padding:8px 12px; font-size:16px;
+}
+.searchbar input::-webkit-search-cancel-button{-webkit-appearance:none}
+.searchbar .cancel{font-size:15px; color:var(--accent); padding:0 4px; flex:none}
+
+#view{
+  flex:1; min-height:0;
+  overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain;
+  padding:6px 16px calc(96px + env(safe-area-inset-bottom));
+}
+
+.tabbar{
+  flex:none; display:flex;
+  background:var(--bar);
+  -webkit-backdrop-filter:blur(20px); backdrop-filter:blur(20px);
+  border-top:.5px solid var(--line);
+  padding-bottom:env(safe-area-inset-bottom);
+}
+.tab{
+  flex:1; padding:7px 0 8px;
+  display:flex; flex-direction:column; align-items:center; gap:3px;
+  font-size:10px; font-weight:500; color:var(--t2);
+  transition:color .15s;
+}
+.tab.on{color:var(--accent)}
+
+.fab{
+  position:fixed;
+  right:max(18px, calc(50% - 320px + 18px));
+  bottom:calc(72px + env(safe-area-inset-bottom));
+  width:54px; height:54px; border-radius:50%;
+  background:var(--accent); color:#fff;
+  display:grid; place-items:center;
+  box-shadow:0 8px 22px rgba(232,137,12,.42);
+  z-index:8;
+  transition:transform .15s;
+}
+.fab:active{transform:scale(.92)}
+
+/* ============================================================
+   4. 列表
+   ============================================================ */
+.sec{
+  display:flex; align-items:center; gap:6px;
+  margin:18px 2px 10px;
+  font-size:12px; font-weight:600; color:var(--t2); letter-spacing:.4px;
+}
+.sec em{font-style:normal; font-weight:500; opacity:.65}
+.sec .clear-tag{margin-left:auto; font-size:12px; font-weight:500; color:var(--accent)}
+
+/* 标签筛选条 */
+.tagbar{
+  display:flex; gap:7px; overflow-x:auto; overflow-y:hidden;
+  padding:8px 0 4px;
+  margin:0 -16px; padding-left:16px; padding-right:16px;
+  scrollbar-width:none;
+}
+.tagbar::-webkit-scrollbar{display:none}
+.chip{
+  flex:none;
+  display:inline-flex; align-items:center; gap:4px;
+  padding:5px 11px; border-radius:999px;
+  background:var(--surface); color:var(--text);
+  font-size:12.5px; font-weight:500;
+  box-shadow:var(--shadow);
+  white-space:nowrap;
+}
+.chip.on{background:var(--accent); color:#fff; box-shadow:0 4px 12px rgba(232,137,12,.3)}
+.chip .num{opacity:.55; font-size:11px}
+
+.folder-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px}
+.folder-card{
+  position:relative;
+  display:flex; flex-direction:column; gap:9px;
+  background:var(--surface);
+  border-radius:16px;
+  padding:13px 10px 12px 13px;
+  box-shadow:var(--shadow);
+  cursor:pointer;
+  transition:transform .12s;
+}
+.folder-card:active{transform:scale(.97)}
+.fc-top{display:flex; align-items:center; justify-content:space-between; width:100%}
+.fc-icon{width:36px; height:36px; border-radius:11px; display:grid; place-items:center; flex:none}
+.fc-name{
+  font-size:14px; font-weight:600; line-height:1.35; word-break:break-all;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+}
+.fc-sub{font-size:11px; color:var(--t2); line-height:1.3}
+
+.note-list{display:flex; flex-direction:column; gap:8px; position:relative}
+.note-card{
+  position:relative;
+  display:flex; align-items:flex-start; gap:4px;
+  background:var(--surface);
+  border-radius:16px;
+  padding:13px 8px 13px 14px;
+  box-shadow:var(--shadow);
+  cursor:pointer;
+  transition:transform .18s ease, box-shadow .18s;
+  will-change:transform;
+}.note-card:active{transform:scale(.985)}
+/* 长按要用来触发拖拽，所以在这些元素上禁用文本选中和系统长按菜单 */
+.note-card, .folder-card, .tree-row, .chip, .tab, .btn-primary, .sheet-item, .iconbtn{
+  -webkit-user-select:none; -moz-user-select:none; user-select:none;
+  -webkit-touch-callout:none;
+}
+.note-card.pinned{box-shadow:var(--shadow), inset 3px 0 0 var(--accent)}
+.note-card.dragging{
+  z-index:30;
+  box-shadow:0 14px 34px rgba(0,0,0,.22);
+  transform:scale(1.02);
+  transition:none;
+  cursor:grabbing;
+}
+.nc-main{flex:1; min-width:0}
+.nc-main h3{
+  font-size:15px; font-weight:600; line-height:1.4;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  display:flex; align-items:center; gap:5px;
+}
+.nc-main h3 span{overflow:hidden; text-overflow:ellipsis}
+.pin-ico{color:var(--accent); flex:none; display:inline-flex; transform:rotate(35deg)}
+.nc-main p{
+  margin-top:3px; font-size:13px; color:var(--t2); line-height:1.45;
+  display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+}
+.nc-time{margin-top:6px; font-size:11px; color:var(--t2)}
+.note-tags{
+  display:flex; gap:5px; margin-top:7px; overflow:hidden; max-height:20px;
+}
+.mini-tag{
+  flex:none;
+  font-size:11px; line-height:1.6;
+  color:var(--accent); background:var(--soft);
+  border-radius:6px; padding:0 7px;
+  white-space:nowrap;
+}
+.mini-tag.more-tag{background:var(--surface-2); color:var(--t2)}
+
+.more{
+  flex:none; width:30px; height:30px; border-radius:8px;
+  display:grid; place-items:center; color:var(--t2);
+  transition:background .15s;
+}
+.more:active{background:var(--surface-2)}
+
+/* 树视图 */
+.tree{
+  background:var(--surface);
+  border-radius:16px;
+  box-shadow:var(--shadow);
+  padding:4px;
+  overflow:hidden;
+}
+.tree-row{
+  display:flex; align-items:center; gap:8px;
+  padding:11px 10px; border-radius:12px;
+  cursor:pointer;
+  transition:background .15s;
+}
+.tree-row + .tree-row{box-shadow:inset 0 .5px 0 var(--line)}
+.tree-row:active{background:var(--surface-2)}
+.tr-icon{display:flex; flex:none}
+.tr-name{flex:1; min-width:0; font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.tr-count{font-size:12px; color:var(--t2); flex:none}
+
+.empty{padding:64px 24px; text-align:center; color:var(--t2)}
+.empty svg{opacity:.3; margin-bottom:14px}
+.empty p{font-size:14px; margin-bottom:18px}
+.btn-primary{
+  background:var(--accent); color:#fff;
+  border-radius:12px; padding:11px 22px;
+  font-size:15px; font-weight:600;
+  box-shadow:0 4px 12px rgba(232,137,12,.3);
+}
+.btn-primary:active{opacity:.85}
+
+/* ============================================================
+   5. 编辑器
+   ============================================================ */
+#editor{
+  position:fixed; inset:0; z-index:40;
+  display:flex; flex-direction:column;
+  max-width:640px; margin:0 auto;
+  background:var(--bg);
+  transform:translateX(100%);
+  transition:transform .26s cubic-bezier(.32,.72,0,1);
+}
+#editor.open{transform:none}
+#editor:not(.open){pointer-events:none}
+/* 编辑器顶栏右侧有三个按钮，收窄左列给中间留位置 */
+#editor .appbar{grid-template-columns:44px 1fr auto}
+.ed-path{
+  font-size:12px; color:var(--t2); text-align:center;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  padding:0 4px;
+}
+#edTitle{
+  flex:none; width:100%; border:0; outline:none; background:transparent;
+  font-size:22px; font-weight:700; letter-spacing:.2px;
+  padding:16px 20px 4px;
+}
+#edTitle::placeholder{color:var(--t2); opacity:.55}
+
+/* 标签编辑区 */
+#edTags{
+  flex:none; display:flex; flex-wrap:wrap; gap:6px;
+  padding:6px 20px 10px;
+}
+.ed-tag{
+  display:inline-flex; align-items:center; gap:4px;
+  background:var(--soft); color:var(--accent);
+  border-radius:8px; padding:3px 8px;
+  font-size:12px; font-weight:500;
+}
+.ed-tag button{color:inherit; opacity:.65; display:flex; padding:0}
+.ed-tag button:active{opacity:1}
+.tag-add{
+  display:inline-flex; align-items:center; gap:3px;
+  border-radius:8px; padding:3px 9px;
+  font-size:12px; color:var(--t2);
+  border:1px dashed var(--line);
+}
+
+#edBody{
+  flex:1; min-height:0; width:100%;
+  border:0; outline:none; background:transparent; resize:none;
+  font-size:16px; line-height:1.75;
+  padding:4px 20px 24px;
+  -webkit-overflow-scrolling:touch;
+}
+#edBody::placeholder{color:var(--t2); opacity:.55}
+
+/* Markdown 预览 */
+#edPreview{
+  flex:1; min-height:0; overflow-y:auto;
+  padding:4px 20px 24px;
+  font-size:15.5px; line-height:1.75;
+  display:none;
+}
+#editor.preview #edBody{display:none}
+#editor.preview #edPreview{display:block}
+#editor.preview #edTitle{opacity:.9}
+.md-body h1,.md-body h2,.md-body h3,.md-body h4{font-weight:700; line-height:1.4; margin:18px 0 8px}
+.md-body h1{font-size:24px; margin-top:6px}
+.md-body h2{font-size:20px}
+.md-body h3{font-size:17px}
+.md-body h4{font-size:16px}
+.md-body h5,.md-body h6{font-size:15px; font-weight:600; margin:14px 0 6px}
+.md-body p{margin:0 0 12px}
+.md-body ul,.md-body ol{margin:0 0 12px; padding-left:22px}
+.md-body li{margin:3px 0}
+.md-body blockquote{
+  margin:0 0 12px; padding:2px 0 2px 12px;
+  border-left:3px solid var(--accent);
+  color:var(--t2);
+}
+.md-body code{
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:.9em;
+  background:var(--surface-2); border-radius:5px; padding:1px 5px;
+}
+.md-body pre{
+  background:var(--surface-2); border-radius:10px;
+  padding:12px 14px; overflow-x:auto; margin:0 0 12px;
+}
+.md-body pre code{background:none; padding:0; font-size:13px; line-height:1.6}
+.md-body hr{border:0; border-top:1px solid var(--line); margin:18px 0}
+.md-body a{color:var(--accent); text-decoration:none}
+.md-body strong{font-weight:700}
+.md-body .md-empty{color:var(--t2); font-size:14px}
+
+/* 便签内查找 */
+#edFind{display:none; align-items:center; gap:4px; padding:0 10px 10px}
+#editor.finding #edFind{display:flex}
+#edFind input{
+  flex:1; min-width:0;
+  -webkit-appearance:none; appearance:none;
+  border:0; outline:none;
+  background:var(--surface-2); color:var(--text);
+  border-radius:10px; padding:8px 12px; font-size:15px;
+}
+#edFind input::-webkit-search-cancel-button{-webkit-appearance:none}
+#edFind .cnt{
+  flex:none; min-width:40px; text-align:center;
+  font-size:12px; color:var(--t2);
+  font-variant-numeric:tabular-nums;
+}
+#edFind .nav{
+  width:34px; height:34px; border-radius:50%;
+  display:grid; place-items:center; color:var(--text); flex:none;
+}
+#edFind .nav:disabled{opacity:.28}
+#edFind .nav:active:not(:disabled){background:var(--surface-2)}
+#edFind .done{flex:none; font-size:15px; color:var(--accent); padding:0 4px}
+
+#edFindView{
+  display:none; flex:1; min-height:0; overflow-y:auto;
+  padding:4px 20px 24px;
+  font-size:16px; line-height:1.75;
+  white-space:pre-wrap; word-break:break-word;
+  -webkit-overflow-scrolling:touch;
+}
+#editor.finding #edFindView{display:block}
+#editor.finding #edBody,
+#editor.finding #edPreview{display:none}
+#edFindView mark{
+  background:rgba(232,137,12,.25); color:inherit;
+  border-radius:3px; padding:1px 0;
+}
+#edFindView mark.cur{background:var(--accent); color:var(--surface)}
+#edFindView .ph{color:var(--t2); font-size:14px}
+
+/* 列表里搜索命中的高亮 */
+mark.hl{
+  background:rgba(232,137,12,.26); color:inherit;
+  border-radius:3px; padding:0 1px; font-weight:inherit;
+}
+@media (prefers-color-scheme: dark){
+  #edFindView mark{background:rgba(255,167,38,.24)}
+  mark.hl{background:rgba(255,167,38,.26)}
+}
+
+.ed-foot{
+  flex:none; display:flex; justify-content:space-between;
+  padding:10px 20px calc(10px + env(safe-area-inset-bottom));
+  font-size:11px; color:var(--t2);
+  border-top:.5px solid var(--line);
+}
+
+/* ============================================================
+   6. 菜单 / 对话框 / 提示
+   ============================================================ */
+#sheetRoot{position:fixed; inset:0; z-index:60; display:none}
+#sheetRoot.open{display:block}
+.mask{position:absolute; inset:0; background:rgba(0,0,0,.42)}
+.sheet{
+  position:absolute; left:0; right:0; bottom:0;
+  max-width:640px; margin:0 auto;
+  max-height:82vh; overflow-y:auto;
+  background:var(--surface);
+  border-radius:22px 22px 0 0;
+  padding:6px 8px calc(10px + env(safe-area-inset-bottom));
+  box-shadow:0 -8px 30px rgba(0,0,0,.18);
+}
+#sheetRoot.open .sheet{animation:sheetUp .26s cubic-bezier(.32,.72,0,1)}
+@keyframes sheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.sheet h4{font-size:13px; font-weight:600; color:var(--t2); margin:14px 14px 6px}
+.sheet-item{
+  display:flex; align-items:center; gap:12px; width:100%;
+  padding:14px; border-radius:12px;
+  font-size:15px; text-align:left;
+  transition:background .12s;
+}
+.sheet-item:active{background:var(--surface-2)}
+.sheet-item.danger{color:var(--danger)}
+.sheet-item:disabled{opacity:.32}
+.pd-wrap{padding:6px 14px 12px}
+.textfield{
+  width:100%; border:0; outline:none;
+  background:var(--surface-2);
+  border-radius:12px; padding:12px 14px; font-size:16px;
+}
+.pd-actions{display:flex; gap:8px; padding:0 8px 4px}
+.pd-btn{
+  flex:1; padding:14px; border-radius:12px;
+  background:var(--surface-2); font-size:15px; font-weight:600;
+  text-align:center;
+}
+.pd-btn.primary{background:var(--accent); color:#fff}
+.pd-msg{padding:4px 16px 14px; font-size:14px; line-height:1.6; color:var(--text)}
+
+#toast{
+  position:fixed; left:50%; bottom:118px;
+  transform:translate(-50%, 10px);
+  background:rgba(28,28,30,.93); color:#fff;
+  font-size:13px; padding:9px 18px; border-radius:20px;
+  opacity:0; pointer-events:none;
+  transition:opacity .2s, transform .2s;
+  z-index:99; max-width:80vw; text-align:center;
+}
+#toast.show{opacity:1; transform:translate(-50%,0)}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <header class="appbar">
+    <button class="iconbtn" id="btnBack" aria-label="返回" style="visibility:hidden">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M15 19l-7-7 7-7"/></svg>
+    </button>
+    <h1 id="appTitle">我的便签</h1>
+    <div class="appbar-right">
+      <button class="iconbtn" id="btnSearch" aria-label="搜索">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20.5 20.5L16.5 16.5"/></svg>
+      </button>
+      <button class="iconbtn" id="btnMenu" aria-label="更多">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>
+      </button>
+    </div>
+    <div class="searchbar" id="searchBar">
+      <input id="searchInput" type="search" placeholder="搜索标题、正文或标签" autocomplete="off" />
+      <button class="cancel" id="searchCancel">取消</button>
+    </div>
+  </header>
+
+  <main id="view"></main>
+
+  <nav class="tabbar">
+    <button class="tab on" data-tab="notes">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg>
+      <span>便签</span>
+    </button>
+    <button class="tab" data-tab="tree">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h6M4 12h10M4 18h6"/><path d="M17 3.5v5M17 11v5"/></svg>
+      <span>文件夹</span>
+    </button>
+  </nav>
+
+  <button class="fab" id="btnFab" aria-label="新建">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+  </button>
+</div>
+
+<!-- 编辑器 -->
+<div id="editor">
+  <header class="appbar">
+    <button class="iconbtn" id="edBack" aria-label="返回">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M15 19l-7-7 7-7"/></svg>
+    </button>
+    <div class="ed-path" id="edPath">未分类</div>
+    <div class="appbar-right">
+      <button class="iconbtn" id="edFindBtn" aria-label="在便签内查找">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20.5 20.5L16.5 16.5"/></svg>
+      </button>
+      <button class="iconbtn" id="edPreviewBtn" aria-label="预览">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.7"/></svg>
+      </button>
+      <button class="iconbtn" id="edMore" aria-label="更多">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>
+      </button>
+    </div>
+  </header>
+  <div id="edFind">
+    <input id="edFindInput" type="search" placeholder="在本便签内查找" autocomplete="off" />
+    <span class="cnt" id="edFindCount"></span>
+    <button class="nav" id="edFindPrev" aria-label="上一个">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>
+    </button>
+    <button class="nav" id="edFindNext" aria-label="下一个">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
+    <button class="done" id="edFindClose">完成</button>
+  </div>
+  <input id="edTitle" placeholder="标题" maxlength="120" />
+  <div id="edTags"></div>
+  <textarea id="edBody" placeholder="开始输入…（支持 Markdown）"></textarea>
+  <div id="edFindView"></div>
+  <div id="edPreview"></div>
+  <footer class="ed-foot">
+    <span id="edCount">0 字</span>
+    <span id="edSaved"></span>
+  </footer>
+</div>
+
+<div id="sheetRoot"></div>
+<div id="toast"></div>
+<input type="file" id="fileInput" accept="application/json,.json" style="display:none" />
+
+<script>
+/* ============================================================
+   0. 图标
+   ============================================================ */
+const PATH = {
+  more:'<circle cx="5" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.7" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.7" fill="currentColor" stroke="none"/>',
+  folder:'<path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.1c.7 0 1.3.3 1.8.7l1 1H18.5A2.5 2.5 0 0 1 21 9.2v7.3A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z"/>',
+  note:'<path d="M6 3.5h8l5 5v12a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 20V5a1.5 1.5 0 0 1 1-1.5z"/><path d="M14 3.5V9h5"/>',
+  move:'<path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.1c.7 0 1.3.3 1.8.7l1 1h6.1A2.5 2.5 0 0 1 21 9.2v7.3A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z"/><path d="M12 11.5v5M9.5 14l2.5 2.5L14.5 14"/>',
+  edit:'<path d="M4 20h4L19 9l-4-4L4 16z"/>',
+  trash:'<path d="M4 7h16M9.5 7V4.8h5V7M6.5 7l.9 12.2h9.2L17.5 7"/>',
+  down:'<path d="M12 4v11M7.5 10.5L12 15l4.5-4.5M4 20h16"/>',
+  pin:'<path d="M12 21v-6"/><path d="M8.5 3h7l-.8 5.2 2.3 3.3V13H7v-1.5l2.3-3.3z"/>',
+  tag:'<path d="M3 11.2V5.5A2.5 2.5 0 0 1 5.5 3h5.7c.7 0 1.3.3 1.8.7l7.3 7.3a1.5 1.5 0 0 1 0 2.1l-5.2 5.2a1.5 1.5 0 0 1-2.1 0L3.7 13c-.4-.5-.7-1.1-.7-1.8z"/><circle cx="8" cy="8" r="1.4" fill="currentColor" stroke="none"/>',
+  clock:'<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  info:'<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.8h.01"/>',
+  text:'<path d="M5 5h14M5 9.5h9M5 14h14M5 18.5h9"/>',
+  search:'<circle cx="11" cy="11" r="7"/><path d="M20.5 20.5L16.5 16.5"/>',
+  code:'<path d="M9 7l-5 5 5 5M15 7l5 5-5 5"/>'
+};
+function icon(name, size=22, sw=1.8){
+  return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="'+sw+'" stroke-linecap="round" stroke-linejoin="round">'+PATH[name]+'</svg>';
+}
+
+/* ============================================================
+   1. 数据层
+     folder = { id, name, parentId, color, createdAt }
+     note   = { id, folderId, title, content, tags[], pinned, order, createdAt, updatedAt }
+   ============================================================ */
+const STORE_KEY = 'noteapp.v1';
+
+const COLORS = [
+  {c:'#e8890c', rgb:'232,137,12'},
+  {c:'#2f9e44', rgb:'47,158,68'},
+  {c:'#1c7ed6', rgb:'28,126,214'},
+  {c:'#9c36b5', rgb:'156,54,181'},
+  {c:'#e8590c', rgb:'232,89,12'},
+  {c:'#0ca678', rgb:'12,166,120'}
+];
+function tint(col){
+  const a = matchMedia('(prefers-color-scheme: dark)').matches ? 0.26 : 0.13;
+  return 'rgba(' + col.rgb + ',' + a + ')';
+}
+
+let db = { folders: [], notes: [] };
+let ui = { view:'notes', folderId:null, searching:false, query:'', editingId:null,
+           tagFilter:null, preview:false, suppressClick:false };
+
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+const $  = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const pad = n => String(n).padStart(2,'0');
+
+function loadDB(){
+  try{
+    const raw = localStorage.getItem(STORE_KEY);
+    if(raw){
+      const d = JSON.parse(raw);
+      if(d && Array.isArray(d.folders) && Array.isArray(d.notes)) db = d;
+    }
+  }catch(e){ console.warn('本地数据读取失败', e); }
+  if(!db.folders.length && !db.notes.length) seed();
+  normalize();
+  save();
+}
+/* 兼容旧版本数据：补齐 tags / pinned / order */
+function normalize(){
+  db.folders.forEach(f => { if(typeof f.color !== 'number') f.color = 0; });
+  db.notes.forEach((n, i) => {
+    if(!Array.isArray(n.tags)) n.tags = [];
+    if(typeof n.pinned !== 'boolean') n.pinned = false;
+    if(typeof n.order !== 'number') n.order = i;
+  });
+}
+function save(){
+  try{ localStorage.setItem(STORE_KEY, JSON.stringify(db)); }
+  catch(e){ toast('存储空间不足，建议导出备份'); }
+}
+
+function seed(){
+  const now = Date.now();
+  const work = { id:uid(), name:'工作', parentId:null, color:2, createdAt:now };
+  const week = { id:uid(), name:'周报', parentId:work.id, color:2, createdAt:now };
+  const life = { id:uid(), name:'生活', parentId:null, color:1, createdAt:now };
+  db.folders.push(work, week, life);
+  db.notes.push(
+    { id:uid(), folderId:null, title:'欢迎使用便签', tags:['入门'], pinned:true, order:0,
+      content:'## 能做什么\n\n- 点右下角 **+** 新建便签或文件夹\n- 文件夹可以**无限套娃**，比如 工作 / 周报 / 第46周\n- 长按便签卡片可以**拖动排序**\n- 右上角 ⋯ → 置顶、加标签\n- 右上角 **眼睛** 图标可以看 Markdown 预览\n\n> 数据只存在这台设备，记得定期导出备份。',
+      createdAt:now, updatedAt:now },
+    { id:uid(), folderId:work.id, title:'开会要带的材料', tags:['工作','待办'], pinned:false, order:1,
+      content:'1. 上季度数据\n2. 竞品对比\n3. 下季度目标拆解',
+      createdAt:now, updatedAt:now },
+    { id:uid(), folderId:week.id, title:'第 46 周周报', tags:['工作'], pinned:false, order:2,
+      content:'**本周完成**\n\n- 完成登录模块联调\n- 修复了 3 个线上问题\n\n**下周计划**\n\n- 接入支付',
+      createdAt:now, updatedAt:now }
+  );
+}
+
+/* ---------- 查询 ---------- */
+const getFolder = id => db.folders.find(f => f.id === id) || null;
+const subFolders = pid =>
+  db.folders
+    .filter(f => (f.parentId || null) === (pid || null))
+    .sort((a,b) => a.name.localeCompare(b.name, 'zh-Hans-CN'));
+
+/* 排序：置顶 → 手动顺序 → 最近更新 */
+function sortNotes(list){
+  return list.slice().sort((a,b) => {
+    if(a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+    if(a.order !== b.order) return a.order - b.order;
+    return b.updatedAt - a.updatedAt;
+  });
+}
+const notesIn = fid => sortNotes(db.notes.filter(n => (n.folderId || null) === (fid || null)));
+
+function descendantIds(fid){
+  const out = [fid], stack = [fid];
+  while(stack.length){
+    const cur = stack.pop();
+    db.folders.forEach(f => {
+      if(f.parentId === cur && !out.includes(f.id)){ out.push(f.id); stack.push(f.id); }
+    });
+  }
+  return out;
+}
+function countNotesDeep(fid){
+  if(!fid) return db.notes.length;
+  const ids = descendantIds(fid);
+  return db.notes.filter(n => ids.includes(n.folderId)).length;
+}
+function folderPathText(fid){
+  if(!fid) return '未分类';
+  const arr = [];
+  let cur = getFolder(fid), guard = 0;
+  while(cur && guard++ < 50){ arr.unshift(cur.name); cur = cur.parentId ? getFolder(cur.parentId) : null; }
+  return arr.join(' / ');
+}
+/* 全库标签统计 */
+function allTags(){
+  const m = new Map();
+  db.notes.forEach(n => n.tags.forEach(t => m.set(t, (m.get(t) || 0) + 1)));
+  return Array.from(m.entries()).sort((a,b) => b[1] - a[1] || a[0].localeCompare(b[0], 'zh-Hans-CN'));
+}
+
+/* ---------- 时间 ---------- */
+function fmtTime(ts){
+  const d = new Date(ts), now = new Date();
+  const same = x => x.getFullYear()===d.getFullYear() && x.getMonth()===d.getMonth() && x.getDate()===d.getDate();
+  if(same(now)) return '今天 ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  const y = new Date(now); y.setDate(now.getDate() - 1);
+  if(same(y)) return '昨天 ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+  if(d.getFullYear() === now.getFullYear()) return (d.getMonth()+1) + '月' + d.getDate() + '日';
+  return d.getFullYear() + '/' + (d.getMonth()+1) + '/' + d.getDate();
+}
+function fmtFull(ts){
+  const d = new Date(ts);
+  return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+}
+function stamp(){
+  const d = new Date();
+  return d.getFullYear() + pad(d.getMonth()+1) + pad(d.getDate()) + '-' + pad(d.getHours()) + pad(d.getMinutes());
+}
+
+/* ============================================================
+   2. 渲染
+   ============================================================ */
+function render(){
+  const cur = ui.folderId ? getFolder(ui.folderId) : null;
+  if(ui.folderId && !cur){ ui.folderId = null; }
+
+  let title = '我的便签';
+  if(ui.tagFilter) title = '#' + ui.tagFilter;
+  else if(ui.searching) title = '搜索';
+  else if(cur) title = cur.name;
+
+  $('#appTitle').textContent = title;
+  $('#btnBack').style.visibility = (cur && !ui.searching && !ui.tagFilter) ? 'visible' : 'hidden';
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.tab === ui.view));
+  $('#btnFab').style.display = (ui.searching || ui.tagFilter) ? 'none' : '';
+
+  const v = $('#view');
+  if(ui.searching)        v.innerHTML = viewSearch();
+  else if(ui.tagFilter)   v.innerHTML = viewTag();
+  else if(ui.view==='tree') v.innerHTML = viewTree();
+  else                    v.innerHTML = viewNotes();
+}
+
+function tagBar(){
+  const tags = allTags();
+  if(!tags.length) return '';
+  return '<div class="tagbar">' +
+    tags.slice(0, 30).map(function(p){
+      return '<button class="chip" data-tag="' + esc(p[0]) + '">' +
+        icon('tag',13,2) + esc(p[0]) + '<span class="num">' + p[1] + '</span></button>';
+    }).join('') + '</div>';
+}
+
+function viewNotes(){
+  const fid = ui.folderId;
+  const fs = subFolders(fid);
+  const ns = notesIn(fid);
+  let h = tagBar();
+
+  if(fs.length){
+    h += '<div class="sec">文件夹<em>' + fs.length + '</em></div>';
+    h += '<div class="folder-grid">' + fs.map(folderCard).join('') + '</div>';
+  }
+  if(ns.length){
+    h += '<div class="sec">便签<em>' + ns.length + '</em><span style="margin-left:auto;font-weight:400;opacity:.6;font-size:11px">长按可拖动排序</span></div>';
+    h += '<div class="note-list" id="noteList">' + ns.map(noteCard).join('') + '</div>';
+  }
+  if(!fs.length && !ns.length){
+    h += '<div class="empty">' + icon('note',44,1.4) +
+         '<p>这里还是空的</p>' +
+         '<button class="btn-primary" data-new-note>写一条便签</button></div>';
+  }
+  return h;
+}
+
+function viewTag(){
+  const tag = ui.tagFilter;
+  const res = sortNotes(db.notes.filter(n => n.tags.indexOf(tag) > -1));
+  let h = '<div class="sec">标签<em>' + res.length + ' 条</em><button class="clear-tag" data-clear-tag>清除筛选</button></div>';
+  if(!res.length) return h + '<div class="empty"><p>没有带 #' + esc(tag) + ' 的便签</p></div>';
+  h += '<div class="note-list" id="noteList">' + res.map(n => noteCard(n, true)).join('') + '</div>';
+  return h;
+}
+
+function folderCard(f){
+  const c = COLORS[(f.color || 0) % COLORS.length];
+  const n = countNotesDeep(f.id);
+  const k = subFolders(f.id).length;
+  const sub = [ n ? n + ' 条便签' : '', k ? k + ' 个子文件夹' : '' ].filter(Boolean).join(' · ') || '空文件夹';
+  return '<div class="folder-card" data-open-folder="' + f.id + '">' +
+      '<div class="fc-top">' +
+        '<div class="fc-icon" style="background:' + tint(c) + ';color:' + c.c + '">' + icon('folder',20,1.9) + '</div>' +
+        '<button class="more" data-more-folder="' + f.id + '">' + icon('more',18) + '</button>' +
+      '</div>' +
+      '<div class="fc-name">' + esc(f.name) + '</div>' +
+      '<div class="fc-sub">' + sub + '</div>' +
+    '</div>';
+}
+
+/* 把 Markdown 正文压成纯文本摘要（列表里显示用） */
+function plainText(md){
+  return String(md || '')
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/`([^`]*)`/g, '$1')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/^\s{0,3}#{1,6}\s+/gm, '')
+    .replace(/^\s{0,3}>\s?/gm, '')
+    .replace(/^\s*[-*+]\s+/gm, '')
+    .replace(/^\s*\d+[.)]\s+/gm, '')
+    .replace(/(\*\*|__)(.*?)\1/g, '$2')
+    .replace(/~~(.*?)~~/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/* 把命中的关键词包成 <mark>（先转义再加标签，顺序不能反） */
+function hlText(text, q){
+  const t = String(text == null ? '' : text);
+  const lq = String(q == null ? '' : q).toLowerCase();
+  if(!lq) return esc(t);
+  const lower = t.toLowerCase();
+  let out = '', i = 0;
+  while(true){
+    const k = lower.indexOf(lq, i);
+    if(k < 0){ out += esc(t.slice(i)); break; }
+    out += esc(t.slice(i, k)) + '<mark class="hl">' + esc(t.slice(k, k + lq.length)) + '</mark>';
+    i = k + lq.length;
+  }
+  return out;
+}
+
+/* 搜索时正文摘要只截命中附近的一段，而不是永远从开头截 */
+function snippetAround(text, q, before, after){
+  const t = String(text || '');
+  if(!t) return t;
+  const ql = String(q || '').toLowerCase();
+  const k = ql ? t.toLowerCase().indexOf(ql) : -1;
+  if(k < 0) return t.length > 90 ? t.slice(0, 90) + '…' : t;
+  const b = before || 16, a = after || 46;
+  const s = Math.max(0, k - b);
+  const e = Math.min(t.length, k + ql.length + a);
+  return (s > 0 ? '…' : '') + t.slice(s, e) + (e < t.length ? '…' : '');
+}
+
+function noteCard(n, showPath, q){
+  const title = n.title || '无标题';
+  const body = snippetAround(plainText(n.content), q);
+  const meta = fmtTime(n.updatedAt) + (showPath ? ' · ' + folderPathText(n.folderId) : '');
+  const tags = n.tags || [];
+  const shown = tags.slice(0, 3);
+  const rest = tags.length - shown.length;
+
+  let tagsHtml = '';
+  if(tags.length){
+    tagsHtml = '<div class="note-tags">' +
+      shown.map(t => '<span class="mini-tag">#' + esc(t) + '</span>').join('') +
+      (rest > 0 ? '<span class="mini-tag more-tag">+' + rest + '</span>' : '') +
+      '</div>';
+  }
+  return '<div class="note-card' + (n.pinned ? ' pinned' : '') + '" data-open-note="' + n.id + '" data-drag-note="' + n.id + '">' +
+      '<div class="nc-main">' +
+        '<h3>' + (n.pinned ? '<i class="pin-ico">' + icon('pin',13,2) + '</i>' : '') +
+          '<span>' + hlText(title, q) + '</span></h3>' +
+        (body ? '<p>' + hlText(body, q) + '</p>' : '') +
+        tagsHtml +
+        '<div class="nc-time">' + esc(meta) + '</div>' +
+      '</div>' +
+      '<button class="more" data-more-note="' + n.id + '">' + icon('more',18) + '</button>' +
+    '</div>';
+}
+
+function viewTree(){
+  const roots = subFolders(null);
+  const rootNotes = notesIn(null).length;
+  let h = '<div class="sec">全部文件夹<em>' + db.folders.length + '</em></div>';
+  if(!roots.length){
+    h += '<div class="empty">' + icon('folder',44,1.4) +
+      '<p>还没有文件夹</p><button class="btn-primary" data-new-folder>新建文件夹</button></div>';
+  }else{
+    h += '<div class="tree">' + treeRows(null, 0) + '</div>';
+  }
+  h += '<div class="sec">未分类<em>' + rootNotes + '</em></div>' +
+       '<div class="tree"><div class="tree-row" data-go-root>' +
+         '<span class="tr-icon" style="color:var(--t2)">' + icon('note',19,1.9) + '</span>' +
+         '<span class="tr-name">根目录的便签</span>' +
+         '<span class="tr-count">' + rootNotes + '</span>' +
+         '<span style="width:30px"></span>' +
+       '</div></div>';
+  return h;
+}
+function treeRows(pid, depth){
+  return subFolders(pid).map(f => {
+    const c = COLORS[(f.color || 0) % COLORS.length];
+    const row =
+      '<div class="tree-row" data-open-folder="' + f.id + '" style="padding-left:' + (10 + depth * 18) + 'px">' +
+        '<span class="tr-icon" style="color:' + c.c + '">' + icon('folder',19,1.9) + '</span>' +
+        '<span class="tr-name">' + esc(f.name) + '</span>' +
+        '<span class="tr-count">' + countNotesDeep(f.id) + '</span>' +
+        '<button class="more" data-more-folder="' + f.id + '">' + icon('more',18) + '</button>' +
+      '</div>';
+    return row + treeRows(f.id, depth + 1);
+  }).join('');
+}
+
+function viewSearch(){
+  const q = ui.query.toLowerCase();
+  if(!q) return '<div class="empty"><p>输入关键字，搜索标题、正文或标签</p></div>';
+  const res = sortNotes(db.notes.filter(n =>
+    ((n.title || '') + ' ' + (n.content || '') + ' ' + n.tags.join(' ')).toLowerCase().includes(q)
+  ));
+  if(!res.length) return '<div class="empty"><p>没有找到相关便签</p></div>';
+  return '<div class="sec">搜索结果<em>' + res.length + '</em></div>' +
+         '<div class="note-list">' + res.map(n => noteCard(n, true, ui.query)).join('') + '</div>';
+}
+
+/* ============================================================
+   3. Markdown 渲染（轻量，自写，无依赖）
+   ============================================================ */
+function mdToHtml(src){
+  if(!src || !src.trim()) return '<p class="md-empty">还没有内容</p>';
+
+  // 行内样式：先抽出代码，避免被其它规则破坏
+  function inline(text){
+    let s = esc(text);
+    const codes = [];
+    s = s.replace(/`([^`]+)`/g, function(_, c){ codes.push(c); return '\u0000' + (codes.length-1) + '\u0000'; });
+    s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+    s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+    s = s.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+    s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    s = s.replace(/\u0000(\d+)\u0000/g, function(_, i){ return '<code>' + codes[+i] + '</code>'; });
+    return s;
+  }
+
+  const lines = src.replace(/\r\n?/g, '\n').split('\n');
+  const out = [];
+  let i = 0, para = [];
+
+  function flushPara(){
+    if(para.length){ out.push('<p>' + inline(para.join(' ')) + '</p>'); para = []; }
+  }
+
+  while(i < lines.length){
+    const line = lines[i];
+
+    // 代码块
+    if(/^\s*```/.test(line)){
+      flushPara();
+      const buf = [];
+      i++;
+      while(i < lines.length && !/^\s*```/.test(lines[i])){ buf.push(lines[i]); i++; }
+      i++;
+      out.push('<pre><code>' + esc(buf.join('\n')) + '</code></pre>');
+      continue;
+    }
+    // 标题
+    let m = line.match(/^(#{1,6})\s+(.*)$/);
+    if(m){
+      flushPara();
+      const lv = m[1].length;
+      out.push('<h' + lv + '>' + inline(m[2]) + '</h' + lv + '>');
+      i++; continue;
+    }
+    // 分割线
+    if(/^\s*([-*_])\s*\1\s*\1[\s\1]*$/.test(line)){
+      flushPara(); out.push('<hr />'); i++; continue;
+    }
+    // 引用
+    if(/^\s*>\s?/.test(line)){
+      flushPara();
+      const buf = [];
+      while(i < lines.length && /^\s*>\s?/.test(lines[i])){
+        buf.push(lines[i].replace(/^\s*>\s?/, '')); i++;
+      }
+      out.push('<blockquote>' + inline(buf.join(' ')) + '</blockquote>');
+      continue;
+    }
+    // 无序列表
+    if(/^\s*[-*+]\s+/.test(line)){
+      flushPara();
+      const buf = [];
+      while(i < lines.length && /^\s*[-*+]\s+/.test(lines[i])){
+        buf.push('<li>' + inline(lines[i].replace(/^\s*[-*+]\s+/, '')) + '</li>'); i++;
+      }
+      out.push('<ul>' + buf.join('') + '</ul>');
+      continue;
+    }
+    // 有序列表
+    if(/^\s*\d+[.)]\s+/.test(line)){
+      flushPara();
+      const buf = [];
+      while(i < lines.length && /^\s*\d+[.)]\s+/.test(lines[i])){
+        buf.push('<li>' + inline(lines[i].replace(/^\s*\d+[.)]\s+/, '')) + '</li>'); i++;
+      }
+      out.push('<ol>' + buf.join('') + '</ol>');
+      continue;
+    }
+    // 空行
+    if(!line.trim()){ flushPara(); i++; continue; }
+
+    para.push(line.trim());
+    i++;
+  }
+  flushPara();
+  return out.join('\n');
+}
+
+/* ============================================================
+   4. 编辑器
+   ============================================================ */
+let saveTimer = null;
+
+function setSaved(text){ $('#edSaved').textContent = text; }
+function updateCount(){
+  const len = $('#edBody').value.replace(/\s/g, '').length;
+  $('#edCount').textContent = len + ' 字';
+}
+
+function openEditor(id){
+  const n = db.notes.find(x => x.id === id);
+  if(!n) return;
+  ui.editingId = id;
+  ui.preview = false;
+  $('#editor').classList.remove('preview');
+  resetFind();
+  $('#edTitle').value = n.title || '';
+  $('#edBody').value = n.content || '';
+  $('#edPath').textContent = folderPathText(n.folderId);
+  setSaved('');
+  updateCount();
+  renderTags();
+  $('#editor').classList.add('open');
+  setTimeout(function(){ if(!n.title) $('#edTitle').focus(); }, 260);
+}
+
+function renderTags(){
+  const n = db.notes.find(x => x.id === ui.editingId);
+  const tags = n ? n.tags : [];
+  $('#edTags').innerHTML =
+    tags.map(t =>
+      '<span class="ed-tag">#' + esc(t) +
+      '<button data-del-tag="' + esc(t) + '" aria-label="删除标签">' +
+      '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>' +
+      '</button></span>'
+    ).join('') +
+    '<button class="tag-add" id="edAddTag">' +
+    '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>标签</button>';
+}
+
+function commitEdits(){
+  const n = db.notes.find(x => x.id === ui.editingId);
+  if(!n) return;
+  const t = $('#edTitle').value.trim();
+  const c = $('#edBody').value;
+  if(n.title === t && n.content === c) return;
+  n.title = t;
+  n.content = c;
+  n.updatedAt = Date.now();
+  save();
+  setSaved('已保存');
+}
+
+function scheduleSave(){
+  clearTimeout(saveTimer);
+  if($('#edSaved').textContent !== '未保存…') setSaved('未保存…');
+  saveTimer = setTimeout(commitEdits, 500);
+}
+
+function closeEditor(){
+  const n = db.notes.find(x => x.id === ui.editingId);
+  commitEdits();
+  if(n && !n.title && !(n.content || '').trim()){
+    db.notes = db.notes.filter(x => x.id !== n.id);
+    save();
+  }
+  ui.editingId = null;
+  ui.preview = false;
+  resetFind();
+  $('#editor').classList.remove('open', 'preview');
+  render();
+}
+
+function newNote(){
+  const now = Date.now();
+  const minOrder = db.notes.length ? Math.min.apply(null, db.notes.map(n => n.order)) : 0;
+  const n = { id:uid(), folderId:ui.folderId, title:'', content:'', tags:[],
+              pinned:false, order:minOrder - 1, createdAt:now, updatedAt:now };
+  db.notes.push(n);
+  save();
+  openEditor(n.id);
+}
+
+/* ---------- 标签操作 ---------- */
+async function addTags(){
+  const n = db.notes.find(x => x.id === ui.editingId);
+  if(!n) return;
+  const raw = await promptDialog('添加标签', '多个标签用逗号分隔', '');
+  if(!raw) return;
+  const items = raw.split(/[,，;；\s]+/).map(s => s.replace(/^#/, '').trim()).filter(Boolean);
+  items.forEach(t => { if(n.tags.indexOf(t) === -1) n.tags.push(t); });
+  n.updatedAt = Date.now();
+  save();
+  renderTags();
+  setSaved('已保存');
+  toast('已添加 ' + items.length + ' 个标签');
+}
+
+/* ---------- 便签内查找 ---------- */
+/* textarea 没法做局部高亮，所以查找时换成一层只读的高亮视图，
+   字体/行高/内边距和 textarea 完全对齐，切换时看不出跳动 */
+const find = { on:false, q:'', idx:0, total:0, hits:[] };
+
+function resetFind(){
+  find.on = false; find.q = ''; find.hits = []; find.total = 0; find.idx = 0;
+  $('#editor').classList.remove('finding');
+  $('#edFindBtn').classList.remove('on');
+  $('#edFindView').innerHTML = '';
+  $('#edFindInput').value = '';
+  $('#edFindCount').textContent = '';
+}
+
+function openFind(q){
+  find.on = true;
+  ui.preview = false;
+  $('#editor').classList.remove('preview');
+  $('#edPreviewBtn').classList.remove('on');
+  $('#editor').classList.add('finding');
+  $('#edFindBtn').classList.add('on');
+  $('#edFindInput').value = q == null ? '' : q;
+  renderFind(true);
+  setTimeout(function(){ $('#edFindInput').focus(); $('#edFindInput').select(); }, 40);
+}
+
+function closeFind(){
+  const hits = find.hits.slice(), q = find.q, idx = find.idx;
+  resetFind();
+  // 退出后把光标停在刚才那个命中上，方便接着改
+  if(hits.length && q){
+    const ta = $('#edBody');
+    const pos = hits[Math.min(idx, hits.length - 1)];
+    ta.focus();
+    try{ ta.setSelectionRange(pos, pos + q.length); }catch(e){}
+  }
+}
+
+function renderFind(reset){
+  const q = $('#edFindInput').value;
+  const text = $('#edBody').value;
+  const box = $('#edFindView');
+  find.q = q;
+
+  if(!q){
+    find.hits = []; find.total = 0; find.idx = 0;
+    box.innerHTML = '<span class="ph">输入关键词，在本便签里查找</span>';
+    updateFindCount();
+    return;
+  }
+  if(!text){
+    find.hits = []; find.total = 0; find.idx = 0;
+    box.innerHTML = '<span class="ph">这条便签还没有正文</span>';
+    updateFindCount();
+    return;
+  }
+
+  const lower = text.toLowerCase(), lq = q.toLowerCase();
+  find.hits = [];
+  let i = 0;
+  while(find.hits.length < 400){        // 上限只是防止极端长文卡住
+    const k = lower.indexOf(lq, i);
+    if(k < 0) break;
+    find.hits.push(k);
+    i = k + lq.length;
+  }
+  find.total = find.hits.length;
+  if(reset || find.idx >= find.total) find.idx = 0;
+
+  let html = '', pos = 0;
+  find.hits.forEach(function(k, n){
+    html += esc(text.slice(pos, k)) +
+      '<mark data-fi="' + n + '"' + (n === find.idx ? ' class="cur"' : '') + '>' +
+      esc(text.slice(k, k + q.length)) + '</mark>';
+    pos = k + q.length;
+  });
+  html += esc(text.slice(pos));
+  box.innerHTML = html;
+  updateFindCount();
+  scrollFindTo();
+}
+
+function updateFindCount(){
+  $('#edFindCount').textContent = !find.q ? '' : (find.total ? (find.idx + 1) + '/' + find.total : '无');
+  $('#edFindPrev').disabled = !find.total;
+  $('#edFindNext').disabled = !find.total;
+}
+
+function scrollFindTo(){
+  const box = $('#edFindView');
+  const cur = box.querySelector('mark.cur');
+  if(!cur) return;
+  box.scrollTop = Math.max(0, cur.offsetTop - box.offsetTop - box.clientHeight / 2 + cur.offsetHeight / 2);
+}
+
+function markFindCur(){
+  $('#edFindView').querySelectorAll('mark[data-fi]').forEach(function(m){
+    m.classList.toggle('cur', Number(m.dataset.fi) === find.idx);
+  });
+}
+
+function gotoFind(delta){
+  if(!find.total) return;
+  find.idx = (find.idx + delta + find.total) % find.total;
+  markFindCur();
+  updateFindCount();
+  scrollFindTo();
+}
+
+/* ============================================================
+   5. 菜单 / 对话框 / 提示
+   ============================================================ */
+let sheetOnClose = null;
+
+function openSheet(html){
+  const root = $('#sheetRoot');
+  root.innerHTML = '<div class="mask"></div><div class="sheet">' + html + '</div>';
+  root.classList.add('open');
+  root.querySelector('.mask').onclick = function(){ closeSheet(); };
+}
+function closeSheet(){
+  $('#sheetRoot').classList.remove('open');
+  if(sheetOnClose){ const f = sheetOnClose; sheetOnClose = null; f(); }
+}
+
+function menuItems(title, items){
+  let h = '<h4>' + esc(title) + '</h4>';
+  items.forEach(function(it, i){
+    h += '<button class="sheet-item ' + (it.danger ? 'danger' : '') + '" data-mi="' + i + '">' +
+         icon(it.icon || 'info', 20) + '<span>' + esc(it.label) + '</span></button>';
+  });
+  h += '<button class="sheet-item" data-cancel style="justify-content:center;color:var(--t2);margin-top:2px">取消</button>';
+  openSheet(h);
+  const root = $('#sheetRoot');
+  root.querySelectorAll('[data-mi]').forEach(function(b){
+    b.onclick = function(){ const fn = items[+b.dataset.mi].onClick; closeSheet(); fn(); };
+  });
+  root.querySelector('[data-cancel]').onclick = function(){ closeSheet(); };
+}
+
+function promptDialog(title, placeholder, value){
+  return new Promise(function(resolve){
+    openSheet(
+      '<h4>' + esc(title) + '</h4>' +
+      '<div class="pd-wrap"><input id="pdInput" class="textfield" placeholder="' + esc(placeholder||'') + '" value="' + esc(value||'') + '" /></div>' +
+      '<div class="pd-actions"><button class="pd-btn" id="pdCancel">取消</button><button class="pd-btn primary" id="pdOk">确定</button></div>'
+    );
+    const inp = $('#pdInput');
+    const done = function(v){ sheetOnClose = null; closeSheet(); resolve(v); };
+    sheetOnClose = function(){ resolve(null); };
+    setTimeout(function(){ inp.focus(); inp.select(); }, 150);
+    $('#pdOk').onclick = function(){ done(inp.value.trim() || null); };
+    $('#pdCancel').onclick = function(){ done(null); };
+    inp.addEventListener('keydown', function(e){ if(e.key === 'Enter') done(inp.value.trim() || null); });
+  });
+}
+
+function confirmDialog(msg){
+  return new Promise(function(resolve){
+    openSheet(
+      '<h4>请确认</h4>' +
+      '<div class="pd-msg">' + esc(msg) + '</div>' +
+      '<div class="pd-actions"><button class="pd-btn" id="cfNo">取消</button><button class="pd-btn primary" id="cfYes">确定</button></div>'
+    );
+    const done = function(v){ sheetOnClose = null; closeSheet(); resolve(v); };
+    sheetOnClose = function(){ resolve(false); };
+    $('#cfNo').onclick = function(){ done(false); };
+    $('#cfYes').onclick = function(){ done(true); };
+  });
+}
+
+let toastTimer = null;
+function toast(msg){
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function(){ t.classList.remove('show'); }, 1900);
+}
+
+/* ============================================================
+   6. 文件夹 / 便签操作
+   ============================================================ */
+async function newFolder(parentId){
+  const name = await promptDialog('新建文件夹', '文件夹名称', '');
+  if(!name) return;
+  db.folders.push({
+    id:uid(), name:name,
+    parentId:(parentId === undefined ? ui.folderId : parentId),
+    color:Math.floor(Math.random() * COLORS.length),
+    createdAt:Date.now()
+  });
+  save();
+  ui.view = 'notes';
+  render();
+  toast('已创建「' + name + '」');
+}
+
+function openFolderMenu(fid){
+  const f = getFolder(fid);
+  if(!f) return;
+  menuItems(f.name, [
+    { icon:'note',   label:'在这个文件夹里新建便签', onClick:function(){ ui.folderId = fid; newNote(); } },
+    { icon:'folder', label:'新建子文件夹',           onClick:function(){ newFolder(fid); } },
+    { icon:'edit',   label:'重命名',                 onClick:async function(){
+        const v = await promptDialog('重命名文件夹', '文件夹名称', f.name);
+        if(v){ f.name = v; save(); render(); toast('已重命名'); }
+      } },
+    { icon:'move',   label:'移动文件夹',             onClick:function(){ moveFolder(fid); } },
+    { icon:'trash',  label:'删除文件夹', danger:true, onClick:async function(){
+        const cnt = countNotesDeep(fid);
+        const ok = await confirmDialog('删除「' + f.name + '」及其全部子文件夹' + (cnt ? '，其中共 ' + cnt + ' 条便签' : '') + '？此操作无法撤销。');
+        if(!ok) return;
+        const ids = descendantIds(fid);
+        db.folders = db.folders.filter(x => !ids.includes(x.id));
+        db.notes   = db.notes.filter(n => !ids.includes(n.folderId));
+        if(ui.folderId && ids.includes(ui.folderId)) ui.folderId = null;
+        save(); render(); toast('已删除');
+      } }
+  ]);
+}
+
+function openNoteMenu(nid){
+  const n = db.notes.find(x => x.id === nid);
+  if(!n) return;
+  menuItems(n.title || '无标题', [
+    { icon:'pin',   label:n.pinned ? '取消置顶' : '置顶', onClick:function(){
+        n.pinned = !n.pinned;
+        n.updatedAt = Date.now();
+        save(); render();
+        toast(n.pinned ? '已置顶' : '已取消置顶');
+      } },
+    { icon:'tag',   label:'编辑标签', onClick:function(){ openEditor(nid); setTimeout(addTags, 400); } },
+    { icon:'edit',  label:'编辑',     onClick:function(){ openEditor(nid); } },
+    { icon:'down',  label:'导出这条便签', onClick:function(){ openNoteExportMenu(nid); } },
+    { icon:'move',  label:'移动到…',  onClick:function(){ moveNote(nid); } },
+    { icon:'trash', label:'删除', danger:true, onClick:async function(){
+        const ok = await confirmDialog('删除这条便签？此操作无法撤销。');
+        if(!ok) return;
+        db.notes = db.notes.filter(x => x.id !== nid);
+        if(ui.editingId === nid){ ui.editingId = null; $('#editor').classList.remove('open'); }
+        save(); render(); toast('已删除');
+      } }
+  ]);
+}
+
+function pickFolder(title, disabledSet, onPick){
+  let h = '<h4>' + esc(title) + '</h4>';
+  h += '<button class="sheet-item" data-pick="__root__">' + icon('folder',19) + '<span>根目录（未分类）</span></button>';
+  h += pickRows(null, 0, disabledSet);
+  openSheet(h);
+  $('#sheetRoot').querySelectorAll('[data-pick]').forEach(function(b){
+    b.onclick = function(){
+      const v = b.dataset.pick;
+      closeSheet();
+      onPick(v === '__root__' ? null : v);
+    };
+  });
+}
+function pickRows(pid, depth, disabledSet){
+  return subFolders(pid).map(function(f){
+    const dis = disabledSet.has(f.id);
+    const row = '<button class="sheet-item" data-pick="' + f.id + '"' +
+      (dis ? ' disabled' : '') + ' style="padding-left:' + (14 + depth * 16) + 'px">' +
+      icon('folder',19) + '<span>' + esc(f.name) + '</span></button>';
+    return row + pickRows(f.id, depth + 1, disabledSet);
+  }).join('');
+}
+
+function moveNote(nid){
+  const n = db.notes.find(x => x.id === nid);
+  if(!n) return;
+  pickFolder('移动便签到…', new Set(), function(target){
+    n.folderId = target;
+    n.updatedAt = Date.now();
+    save();
+    if(ui.editingId === nid) $('#edPath').textContent = folderPathText(target);
+    render();
+    toast('已移动到「' + folderPathText(target) + '」');
+  });
+}
+
+function moveFolder(fid){
+  const f = getFolder(fid);
+  if(!f) return;
+  const banned = new Set(descendantIds(fid));
+  pickFolder('移动「' + f.name + '」到…', banned, function(target){
+    f.parentId = target;
+    save(); render();
+    toast('已移动到「' + folderPathText(target) + '」');
+  });
+}
+
+/* ============================================================
+   7. 长按拖拽排序
+   ============================================================ */
+const drag = {
+  active:false, el:null, id:null, listEl:null,
+  startX:0, startY:0, h:0, from:0, to:0,
+  others:[], rects:[], timer:null, moved:false
+};
+
+function dragStart(e){
+  const card = e.target.closest('[data-drag-note]');
+  if(!card || !card.closest('#noteList')) return false;
+  if(e.target.closest('.more')) return false;
+  if(e.pointerType === 'mouse' && e.button !== 0) return false;
+
+  drag.active = false;
+  drag.id = card.dataset.dragNote;
+  drag.el = card;
+  drag.startX = e.clientX;
+  drag.startY = e.clientY;
+  drag.moved = false;
+  drag.listEl = card.closest('#noteList');
+
+  clearTimeout(drag.timer);
+  drag.timer = setTimeout(function(){ beginDrag(); }, 380);
+  return true;
+}
+
+function beginDrag(){
+  const el = drag.el;
+  if(!el) return;
+  const rect = el.getBoundingClientRect();
+  drag.active = true;
+  drag.h = rect.height + 8;   // 8 = gap
+  drag.from = Array.prototype.indexOf.call(drag.listEl.children, el);
+  drag.to = drag.from;
+  drag.others = Array.prototype.filter.call(drag.listEl.children, c => c !== el);
+  drag.rects = drag.others.map(c => c.getBoundingClientRect());
+
+  el.classList.add('dragging');
+  el.style.width = rect.width + 'px';
+  el.style.left = rect.width ? '' : ''; // 占位：靠 transform 移动，不改文档流
+
+  if(navigator.vibrate) navigator.vibrate(12);
+  ui.suppressClick = true;
+}
+
+function dragMove(e){
+  if(!drag.active || !drag.el) return;
+  const dy = e.clientY - drag.startY;
+  drag.el.style.transform = 'translateY(' + dy + 'px) scale(1.02)';
+  drag.moved = true;
+
+  // 判断插入位置
+  const y = e.clientY;
+  let k = drag.others.length;
+  for(let i = 0; i < drag.rects.length; i++){
+    const r = drag.rects[i];
+    if(y < r.top + r.height / 2){ k = i; break; }
+  }
+  drag.to = k;
+
+  // 让位动画：others 内部索引 i 对应原位置 i<from? i : i+1
+  const fromVirtual = drag.from;
+  drag.others.forEach(function(node, i){
+    let shift = 0;
+    if(k > fromVirtual && i >= fromVirtual && i < k) shift = -drag.h;
+    else if(k < fromVirtual && i >= k && i < fromVirtual) shift = drag.h;
+    node.style.transform = shift ? 'translateY(' + shift + 'px)' : '';
+  });
+}
+
+function dragEnd(){
+  clearTimeout(drag.timer);
+  if(!drag.active){ drag.el = null; return; }
+  const el = drag.el, listEl = drag.listEl, k = drag.to;
+  const others = drag.others.slice();
+
+  // 复位视觉
+  el.classList.remove('dragging');
+  el.style.transform = '';
+  el.style.width = '';
+  others.forEach(function(n){ n.style.transform = ''; });
+
+  // 真正重排 DOM
+  const finalOrder = others.slice(0, k).concat([el], others.slice(k));
+  finalOrder.forEach(function(n){ listEl.appendChild(n); });
+
+  // 写回 order
+  const ids = Array.prototype.map.call(listEl.children, c => c.dataset.dragNote);
+  ids.forEach(function(id, i){
+    const n = db.notes.find(x => x.id === id);
+    if(n) n.order = i;
+  });
+  save();
+
+  drag.active = false;
+  drag.el = null;
+
+  render();
+  toast('顺序已保存');
+}
+
+function dragCancel(){
+  clearTimeout(drag.timer);
+  if(drag.active && drag.el){
+    drag.el.classList.remove('dragging');
+    drag.el.style.transform = '';
+    drag.el.style.width = '';
+    (drag.others || []).forEach(function(n){ n.style.transform = ''; });
+  }
+  drag.active = false;
+  drag.el = null;
+}
+
+/* ============================================================
+   8. 导出 / 导入
+   ============================================================ */
+/* 交给系统落地一个 Blob：优先系统分享面板，其次下载 */
+async function saveBlob(filename, blob){
+  const file = new File([blob], filename, { type:blob.type || 'application/octet-stream' });
+  if(navigator.canShare && navigator.canShare({ files:[file] })){
+    try{
+      await navigator.share({ files:[file], title:filename });
+      return;
+    }catch(e){
+      if(e && e.name === 'AbortError') return;
+    }
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+  toast('已导出：' + filename);
+}
+
+async function saveFile(filename, text, mime){
+  // 安卓壳：交给原生写入「下载」目录
+  if(window.AndroidBridge && window.AndroidBridge.saveFile){
+    try{
+      const ok = window.AndroidBridge.saveFile(filename, text, mime || 'text/plain');
+      toast(ok ? '已保存到「下载」：' + filename : '保存失败');
+      return;
+    }catch(e){ /* 落回 web 逻辑 */ }
+  }
+  await saveBlob(filename, new Blob([text], { type:mime }));
+}
+
+/* ---------- Markdown ---------- */
+const hash = n => '#'.repeat(Math.min(n, 6));
+
+function buildMarkdown(fid){
+  const out = [];
+  const scope = fid ? getFolder(fid) : null;
+  out.push('# 便签导出' + (scope ? ' · ' + scope.name : ''));
+  out.push('');
+  out.push('> 导出时间：' + fmtFull(Date.now()));
+  out.push('> 文件夹 ' + db.folders.length + ' 个，便签 ' + countNotesDeep(fid) + ' 条');
+  out.push('');
+  if(scope){ out.push('分类路径：' + folderPathText(fid)); out.push(''); }
+
+  if(fid){
+    mdFolder(fid, 2, out);
+  }else{
+    if(notesIn(null).length){
+      out.push('## 未分类');
+      out.push('');
+      mdNotes(null, 3, out);
+    }
+    subFolders(null).forEach(function(f){ mdFolder(f.id, 2, out); });
+  }
+  return out.join('\n');
+}
+function mdFolder(fid, level, out){
+  out.push(hash(level) + ' ' + getFolder(fid).name);
+  out.push('');
+  if(!notesIn(fid).length && !subFolders(fid).length){
+    out.push('*（空文件夹）*');
+    out.push('');
+    return;
+  }
+  mdNotes(fid, level + 1, out);
+  subFolders(fid).forEach(function(f){ mdFolder(f.id, level + 1, out); });
+}
+function mdNotes(fid, level, out){
+  notesIn(fid).forEach(function(n){
+    out.push(hash(level) + ' ' + (n.title || '无标题'));
+    out.push('');
+    if(n.tags.length) out.push('`' + n.tags.map(t => '#' + t).join(' ') + '`');
+    out.push('*更新于 ' + fmtFull(n.updatedAt) + (n.pinned ? ' · 置顶' : '') + '*');
+    out.push('');
+    if(n.content){ out.push(n.content); out.push(''); }
+  });
+}
+
+/* ---------- 纯文本 ---------- */
+/* 把 Markdown 转成适合纯文本阅读的排版（去掉符号，保留结构） */
+function stripInline(s){
+  return s
+    .replace(/`([^`]*)`/g, '$1')
+    .replace(/(\*\*|__)(.*?)\1/g, '$2')
+    .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1$2')
+    .replace(/~~(.*?)~~/g, '$1')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1');
+}
+function mdToPlain(md){
+  const lines = String(md || '').replace(/\r\n?/g, '\n').split('\n');
+  const out = [];
+  let inCode = false;
+  lines.forEach(function(line){
+    if(/^\s*```/.test(line)){ inCode = !inCode; out.push('    ┈┈┈'); return; }
+    if(inCode){ out.push('    ' + line); return; }
+
+    let m = line.match(/^(#{1,6})\s+(.*)$/);
+    if(m){
+      const t = stripInline(m[2]);
+      out.push(t);
+      out.push('─'.repeat(Math.min(t.length * 2 + 4, 40)));
+      return;
+    }
+    m = line.match(/^\s*[-*+]\s+(.*)$/);
+    if(m){ out.push('• ' + stripInline(m[1])); return; }
+    m = line.match(/^\s*(\d+)[.)]\s+(.*)$/);
+    if(m){ out.push(m[1] + '. ' + stripInline(m[2])); return; }
+    m = line.match(/^\s*>\s?(.*)$/);
+    if(m){ out.push('│ ' + stripInline(m[1])); return; }
+    if(/^\s*([-*_])\s*\1\s*\1[\s\1]*$/.test(line)){ out.push('─'.repeat(30)); return; }
+    out.push(stripInline(line));
+  });
+  // 压缩连续空行
+  return out.join('\n').replace(/\n{3,}/g, '\n\n');
+}
+
+function buildText(fid){
+  const L = [];
+  const scope = fid ? getFolder(fid) : null;
+  L.push('便签导出' + (scope ? ' · ' + scope.name : ''));
+  L.push('导出时间：' + fmtFull(Date.now()));
+  L.push('文件夹 ' + db.folders.length + ' 个，便签 ' + countNotesDeep(fid) + ' 条');
+  L.push('='.repeat(48));
+  L.push('');
+
+  if(fid){
+    textFolder(fid, 0, L);
+  }else{
+    if(notesIn(null).length){
+      L.push('【未分类】');
+      L.push('');
+      textNotes(null, 1, L);
+    }
+    subFolders(null).forEach(function(f){ textFolder(f.id, 0, L); });
+  }
+  return L.join('\n');
+}
+function textFolder(fid, depth, L){
+  const pad = '  '.repeat(depth);
+  L.push(pad + '【' + folderPathText(fid) + '】');
+  L.push('');
+  if(!notesIn(fid).length && !subFolders(fid).length){
+    L.push(pad + '  （空文件夹）');
+    L.push('');
+  }else{
+    textNotes(fid, depth + 1, L);
+  }
+  subFolders(fid).forEach(function(f){ textFolder(f.id, depth + 1, L); });
+}
+function textNotes(fid, depth, L){
+  const pad = '  '.repeat(depth);
+  notesIn(fid).forEach(function(n){
+    L.push(pad + (n.pinned ? '★ ' : '· ') + (n.title || '无标题'));
+    if(n.tags.length) L.push(pad + '  标签：' + n.tags.map(t => '#' + t).join(' '));
+    L.push(pad + '  更新：' + fmtFull(n.updatedAt));
+    L.push('');
+    if(n.content){
+      mdToPlain(n.content).split('\n').forEach(function(line){ L.push(pad + '  ' + line); });
+      L.push('');
+    }
+    L.push('');
+  });
+}
+
+/* ---------- HTML ---------- */
+function buildHTML(){
+  const parts = [];
+  if(notesIn(null).length){
+    parts.push('<h2>未分类</h2>');
+    htmlNotes(null, parts);
+  }
+  subFolders(null).forEach(function(f){ htmlFolder(f.id, parts); });
+
+  return '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n<meta charset="UTF-8" />\n' +
+    '<meta name="viewport" content="width=device-width,initial-scale=1" />\n' +
+    '<title>便签导出</title>\n<style>\n' +
+    'body{max-width:760px;margin:0 auto;padding:32px 20px 80px;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;line-height:1.7;color:#1c1c1e}\n' +
+    'h1{font-size:22px;border-bottom:2px solid #e8890c;padding-bottom:10px}\n' +
+    'h2{font-size:18px;margin:34px 0 4px;color:#e8890c}\n' +
+    '.crumb{font-size:12px;color:#8a8a8e;font-weight:400}\n' +
+    'h3{font-size:16px;margin:22px 0 0}\n' +
+    '.meta{color:#8a8a8e;font-size:12px;margin-bottom:6px}\n' +
+    '.tagline{color:#e8890c;font-size:12px;margin-bottom:4px}\n' +
+    '.body{white-space:pre-wrap;font-size:15px;background:#f7f7f9;border-radius:10px;padding:14px 16px}\n' +
+    'article{margin-bottom:18px}\n' +
+    '@media print{body{padding:0}.body{background:none;border:1px solid #ddd}}\n' +
+    '</style>\n</head>\n<body>\n<h1>便签导出</h1>\n<p class="meta">导出时间：' + fmtFull(Date.now()) + '</p>\n' +
+    parts.join('\n') + '\n</body>\n</html>';
+}
+function htmlFolder(fid, parts){
+  const f = getFolder(fid);
+  if(!f) return;
+  const parent = f.parentId ? folderPathText(f.parentId) : '';
+  parts.push('<h2>' + (parent ? '<span class="crumb">' + esc(parent) + ' / </span>' : '') + esc(f.name) + '</h2>');
+  htmlNotes(fid, parts);
+  subFolders(fid).forEach(function(c){ htmlFolder(c.id, parts); });
+}
+function htmlNotes(fid, parts){
+  notesIn(fid).forEach(function(n){
+    parts.push('<article><h3>' + (n.pinned ? '★ ' : '') + esc(n.title || '无标题') + '</h3>' +
+      (n.tags.length ? '<div class="tagline">' + esc(n.tags.map(t => '#' + t).join('  ')) + '</div>' : '') +
+      '<div class="meta">更新于 ' + fmtFull(n.updatedAt) + '</div>' +
+      (n.content ? '<div class="body">' + esc(n.content) + '</div>' : '') + '</article>');
+  });
+}
+
+function exportMD(fid){
+  const name = '便签-' + folderPathText(fid).replace(/[\\/:*?"<>|\s]+/g, '_') + '-' + stamp() + '.md';
+  saveFile(name, buildMarkdown(fid), 'text/markdown;charset=utf-8');
+}
+function exportTXT(fid){
+  const name = '便签-' + folderPathText(fid).replace(/[\\/:*?"<>|\s]+/g, '_') + '-' + stamp() + '.txt';
+  saveFile(name, buildText(fid), 'text/plain;charset=utf-8');
+}
+function exportHTML(){
+  saveFile('便签导出-' + stamp() + '.html', buildHTML(), 'text/html;charset=utf-8');
+}
+function exportJSON(){
+  const data = Object.assign({ app:'便签', version:2, exportedAt:new Date().toISOString() }, db);
+  saveFile('便签备份-' + stamp() + '.json', JSON.stringify(data, null, 2), 'application/json');
+}
+
+/* ---------- 单条便签导出 ---------- */
+function noteFileBase(n){
+  const t = String(n.title || '无标题')
+    .replace(/[\\/:*?"<>|\n\r\t]+/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 24) || '无标题';
+  return '便签-' + t + '-' + stamp();
+}
+
+function buildNoteMarkdown(n){
+  const L = [];
+  L.push('# ' + (n.title || '无标题'));
+  L.push('');
+  if(n.tags && n.tags.length) L.push('`' + n.tags.map(t => '#' + t).join(' ') + '`  ');
+  L.push('*更新于 ' + fmtFull(n.updatedAt) + (n.pinned ? ' · 置顶' : '') + '*  ');
+  L.push('*位置：' + folderPathText(n.folderId) + '*');
+  L.push('');
+  if(n.content){ L.push(n.content); L.push(''); }
+  return L.join('\n');
+}
+
+function buildNoteText(n){
+  const L = [];
+  const t = n.title || '无标题';
+  L.push(t);
+  L.push('='.repeat(Math.min(48, Math.max(10, t.length * 2 + 4))));
+  L.push('');
+  if(n.tags && n.tags.length) L.push('标签：' + n.tags.map(x => '#' + x).join(' '));
+  L.push('更新：' + fmtFull(n.updatedAt) + (n.pinned ? '   ★ 置顶' : ''));
+  L.push('位置：' + folderPathText(n.folderId));
+  L.push('');
+  L.push('─'.repeat(32));
+  L.push('');
+  L.push(n.content ? mdToPlain(n.content) : '（无正文）');
+  L.push('');
+  return L.join('\n');
+}
+
+function buildNoteHTML(n){
+  const title = n.title || '无标题';
+  return '<!DOCTYPE html>\n<html lang="zh-CN">\n<head>\n<meta charset="UTF-8" />\n' +
+    '<meta name="viewport" content="width=device-width,initial-scale=1" />\n' +
+    '<title>' + esc(title) + '</title>\n<style>\n' +
+    'body{max-width:720px;margin:0 auto;padding:36px 22px 90px;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;line-height:1.75;color:#1c1c1e;font-size:16px}\n' +
+    'h1{font-size:24px;line-height:1.35;margin:0 0 10px}\n' +
+    '.crumb{color:#8a8a8e;font-size:12px;margin:0 0 4px}\n' +
+    '.tags{color:#e8890c;font-size:12px;margin:0 0 18px}\n' +
+    '.md h1,.md h2,.md h3,.md h4{line-height:1.4;margin:22px 0 8px}\n' +
+    '.md h1{font-size:22px}.md h2{font-size:19px}.md h3{font-size:17px}.md h4,.md h5,.md h6{font-size:16px}\n' +
+    '.md p{margin:0 0 12px}\n' +
+    '.md ul,.md ol{margin:0 0 12px;padding-left:24px}\n' +
+    '.md li{margin:3px 0}\n' +
+    '.md blockquote{margin:0 0 12px;padding:2px 0 2px 14px;border-left:3px solid #e8890c;color:#6b6b70}\n' +
+    '.md code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;background:#f2f2f7;border-radius:5px;padding:1px 5px}\n' +
+    '.md pre{background:#f2f2f7;border-radius:10px;padding:12px 14px;overflow-x:auto;margin:0 0 12px}\n' +
+    '.md pre code{background:none;padding:0;font-size:13px;line-height:1.6}\n' +
+    '.md hr{border:0;border-top:1px solid #e2e2e7;margin:20px 0}\n' +
+    '.md a{color:#e8890c;text-decoration:none}\n' +
+    '.md .md-empty{color:#8a8a8e}\n' +
+    '@media print{body{padding:0;max-width:none}.md pre{background:none;border:1px solid #ddd}}\n' +
+    '</style>\n</head>\n<body>\n' +
+    // 正文自己写了 H1 就不再重复一个
+    (/^#\s+\S/.test(firstMeaningfulLine(n.content)) ? '' : '<h1>' + (n.pinned ? '★ ' : '') + esc(title) + '</h1>\n') +
+    '<p class="crumb">' + esc(folderPathText(n.folderId)) + ' · 更新于 ' + fmtFull(n.updatedAt) + '</p>\n' +
+    (n.tags && n.tags.length ? '<p class="tags">' + esc(n.tags.map(t => '#' + t).join('  ')) + '</p>\n' : '<p class="tags"></p>\n') +
+    '<article class="md">' + mdToHtml(n.content || '') + '</article>\n' +
+    '</body>\n</html>';
+}
+
+function exportNoteMD(nid){
+  const n = db.notes.find(x => x.id === nid);
+  if(!n) return;
+  saveFile(noteFileBase(n) + '.md', buildNoteMarkdown(n), 'text/markdown;charset=utf-8');
+}
+function exportNoteTXT(nid){
+  const n = db.notes.find(x => x.id === nid);
+  if(!n) return;
+  saveFile(noteFileBase(n) + '.txt', buildNoteText(n), 'text/plain;charset=utf-8');
+}
+function exportNoteHTML(nid){
+  const n = db.notes.find(x => x.id === nid);
+  if(!n) return;
+  saveFile(noteFileBase(n) + '.html', buildNoteHTML(n), 'text/html;charset=utf-8');
+}
+function openNoteExportMenu(nid){
+  const n = db.notes.find(x => x.id === nid);
+  if(!n) return;
+  menuItems('导出「' + (n.title || '无标题') + '」', [
+    { icon:'text', label:'导出 TXT（纯文本）', onClick:function(){ exportNoteTXT(nid); } },
+    { icon:'down', label:'导出 Markdown',      onClick:function(){ exportNoteMD(nid); } },
+    { icon:'code', label:'导出 HTML（带排版）', onClick:function(){ exportNoteHTML(nid); } }
+  ]);
+}
+
+/* 按文件夹导出时，文件名已经承载了标题，正文里就不要再重复一遍；
+   但如果正文本身没有一级标题，补一个，免得单独打开文件不知道叫什么 */
+function firstMeaningfulLine(text){
+  const lines = String(text || '').replace(/\r\n?/g, '\n').split('\n');
+  for(let i = 0; i < lines.length; i++){ if(lines[i].trim()) return lines[i]; }
+  return '';
+}
+function noteBodyMd(n){
+  const title = n.title || '无标题';
+  const body = String(n.content || '').replace(/\r\n?/g, '\n').trim();
+  if(!body) return '# ' + title + '\n';
+  return /^#\s+\S/.test(firstMeaningfulLine(body)) ? body + '\n' : '# ' + title + '\n\n' + body + '\n';
+}
+function noteBodyText(n){
+  const title = n.title || '无标题';
+  const body = String(n.content || '').trim();
+  if(!body) return title + '\n';
+  const plain = mdToPlain(body);
+  return /^#\s+\S/.test(firstMeaningfulLine(body)) ? plain + '\n' : title + '\n\n' + plain + '\n';
+}
+
+/* ---------- 按文件夹结构导出（一条便签一个文件，目录层级照搬） ---------- */
+const BAD_CHARS = /[\\/:*?"<>|\u0000-\u001f]/g;
+
+/* 文件夹名/便签标题都可能含 / 或 :，直接当文件名会丢字符甚至跑出目录 */
+function safeSeg(name, max){
+  let s = String(name == null ? '' : name)
+    .replace(BAD_CHARS, '_')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^\.+$/, '_');
+  if(!s) s = '未命名';
+  const m = max || 60;
+  return s.length > m ? s.slice(0, m).trim() : s;
+}
+
+function buildTreePlan(fmt, fid){
+  const scope = fid ? folderPathText(fid).replace(/\s*\/\s*/g, '-') : '';
+  const root = '便签' + (scope ? '-' + safeSeg(scope, 30) : '') + '-' + stamp();
+
+  const dirs  = [];                 // 目录相对路径（用 / 分隔）
+  const files = [];                 // { dir, name, content }
+  const seenDir  = new Set();
+  const seenName = new Map();       // dir -> Set(小写文件名)，避免同名覆盖
+
+  function addDir(dir){
+    if(dir && !seenDir.has(dir)){ seenDir.add(dir); dirs.push(dir); }
+  }
+  function uniqName(dir, base, ext){
+    if(!seenName.has(dir)) seenName.set(dir, new Set());
+    const set = seenName.get(dir);
+    let name = base + ext, i = 2;
+    while(set.has(name.toLowerCase())){ name = base + ' (' + i + ')' + ext; i++; }
+    set.add(name.toLowerCase());
+    return name;
+  }
+  function addNote(n, dir){
+    addDir(dir);
+    const content = fmt === 'md'   ? noteBodyMd(n)
+                  : fmt === 'txt'  ? noteBodyText(n)
+                  :                  buildNoteHTML(n);
+    files.push({
+      dir: dir,
+      name: uniqName(dir, safeSeg(n.title || '无标题', 60), '.' + fmt),
+      content: content,
+      time: n.updatedAt || n.createdAt || Date.now()
+    });
+  }
+  function walk(pid, dir){
+    addDir(dir);
+    notesIn(pid).forEach(function(n){ addNote(n, dir); });
+    subFolders(pid).forEach(function(f){
+      const sub = dir ? dir + '/' + safeSeg(f.name, 50) : safeSeg(f.name, 50);
+      walk(f.id, sub);
+    });
+  }
+
+  walk(fid || null, '');
+  return { root: root, dirs: dirs, files: files };
+}
+
+/* ---- 极简 ZIP 打包（仅存储，不压缩；足够让解压工具还原目录） ---- */
+const CRC_TABLE = (function(){
+  const t = new Uint32Array(256);
+  for(let i = 0; i < 256; i++){
+    let c = i;
+    for(let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[i] = c >>> 0;
+  }
+  return t;
+})();
+function crc32(buf){
+  let c = 0xFFFFFFFF;
+  for(let i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+
+function makeZip(entries){
+  const enc = new TextEncoder();
+  const fallback = new Date();
+  function dos(d){
+    const t = d instanceof Date && !isNaN(d) ? d : fallback;
+    let y = t.getFullYear();
+    if(y < 1980) y = 1980;
+    if(y > 2107) y = 2107;
+    return [
+      ((t.getHours() << 11) | (t.getMinutes() << 5) | (t.getSeconds() >> 1)) & 0xFFFF,
+      (((y - 1980) << 9) | ((t.getMonth() + 1) << 5) | t.getDate()) & 0xFFFF
+    ];
+  }
+
+  const locals = [];   // { header, name, data }
+  const centrals = [];
+  let offset = 0;
+
+  entries.forEach(function(e){
+    const nameBytes = enc.encode(e.name);
+    const data = e.dir ? new Uint8Array(0) : (e.data || new Uint8Array(0));
+    const crc = crc32(data);
+    const dt = dos(e.time);
+
+    const lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0, 0x04034b50, true);
+    lh.setUint16(4, 20, true);           // 解压所需版本
+    lh.setUint16(6, 0x0800, true);       // bit 11：文件名为 UTF-8
+    lh.setUint16(8, 0, true);            // 0 = 仅存储
+    lh.setUint16(10, dt[0], true);
+    lh.setUint16(12, dt[1], true);
+    lh.setUint32(14, crc, true);
+    lh.setUint32(18, data.length, true);
+    lh.setUint32(22, data.length, true);
+    lh.setUint16(26, nameBytes.length, true);
+    lh.setUint16(28, 0, true);
+    locals.push({ header:new Uint8Array(lh.buffer), name:nameBytes, data:data });
+
+    const ch = new DataView(new ArrayBuffer(46));
+    ch.setUint32(0, 0x02014b50, true);
+    ch.setUint16(4, 20, true);           // 制作版本
+    ch.setUint16(6, 20, true);
+    ch.setUint16(8, 0x0800, true);
+    ch.setUint16(10, 0, true);
+    ch.setUint16(12, dt[0], true);
+    ch.setUint16(14, dt[1], true);
+    ch.setUint32(16, crc, true);
+    ch.setUint32(20, data.length, true);
+    ch.setUint32(24, data.length, true);
+    ch.setUint16(28, nameBytes.length, true);
+    ch.setUint16(30, 0, true);           // extra
+    ch.setUint16(32, 0, true);           // comment
+    ch.setUint16(34, 0, true);           // disk
+    ch.setUint16(36, 0, true);           // 内部属性
+    ch.setUint32(38, e.dir ? 0x41ED0010 : 0x81A40000, true);   // 外部属性：目录位 / 常规文件
+    ch.setUint32(42, offset, true);
+    centrals.push({ header:new Uint8Array(ch.buffer), name:nameBytes });
+
+    offset += 30 + nameBytes.length + data.length;
+  });
+
+  let centralSize = 0;
+  centrals.forEach(function(c){ centralSize += 46 + c.name.length; });
+
+  const total = offset + centralSize + 22;
+  const out = new Uint8Array(total);
+  let p = 0;
+
+  locals.forEach(function(l){
+    out.set(l.header, p); p += l.header.length;
+    out.set(l.name, p);   p += l.name.length;
+    out.set(l.data, p);   p += l.data.length;
+  });
+  centrals.forEach(function(c){
+    out.set(c.header, p); p += c.header.length;
+    out.set(c.name, p);   p += c.name.length;
+  });
+
+  const eocd = new DataView(new ArrayBuffer(22));
+  eocd.setUint32(0, 0x06054b50, true);
+  eocd.setUint16(8, entries.length, true);
+  eocd.setUint16(10, entries.length, true);
+  eocd.setUint32(12, centralSize, true);
+  eocd.setUint32(16, offset, true);
+  out.set(new Uint8Array(eocd.buffer), p);
+  return out;
+}
+
+function zipPlan(plan){
+  const enc = new TextEncoder();
+  const entries = [{ name: plan.root + '/', dir: true }];
+  plan.dirs.forEach(function(d){ entries.push({ name: plan.root + '/' + d + '/', dir: true }); });
+  plan.files.forEach(function(f){
+    entries.push({
+      name: plan.root + '/' + (f.dir ? f.dir + '/' : '') + f.name,
+      data: enc.encode(f.content),
+      time: f.time ? new Date(f.time) : null,
+      dir: false
+    });
+  });
+  return makeZip(entries);
+}
+
+async function exportTree(fmt, fid){
+  const plan = buildTreePlan(fmt, fid);
+  if(!plan.files.length){ toast('这里还没有便签可以导出'); return; }
+
+  // 安卓壳：直接建真实的多层目录，不用解压
+  if(window.AndroidBridge && window.AndroidBridge.saveTree){
+    try{
+      const res = String(window.AndroidBridge.saveTree(JSON.stringify(plan)));
+      if(res.indexOf('ok|') === 0){
+        const p = res.split('|');
+        const skipped = Number(p[2] || 0);
+        toast('已写入「下载/' + plan.root + '」' + p[1] + ' 个文件' +
+              (skipped ? '（' + skipped + ' 个空文件夹已略过）' : ''));
+        return;
+      }
+      if(res.indexOf('err|') === 0) toast('目录写入失败：' + res.slice(4).slice(0, 40));
+    }catch(e){ /* 落回 zip */ }
+  }
+
+  // 浏览器：打包成 zip，解压后就是同样的目录结构
+  await saveBlob(plan.root + '.zip', new Blob([zipPlan(plan)], { type:'application/zip' }));
+}
+
+function openTreeExportMenu(){
+  const here = ui.folderId ? folderPathText(ui.folderId) : '全部';
+  menuItems('按文件夹结构导出（' + here + '）', [
+    { icon:'down', label:'每条便签一个 .md 文件',   onClick:function(){ exportTree('md',  ui.folderId); } },
+    { icon:'text', label:'每条便签一个 .txt 文件',  onClick:function(){ exportTree('txt', ui.folderId); } },
+    { icon:'code', label:'每条便签一个 .html 文件', onClick:function(){ exportTree('html', ui.folderId); } }
+  ]);
+}
+
+async function importJSON(file){
+  let data;
+  try{
+    data = JSON.parse(await file.text());
+  }catch(e){
+    toast('文件不是有效的 JSON');
+    return;
+  }
+  if(!data || !Array.isArray(data.folders) || !Array.isArray(data.notes)){
+    toast('这不是本应用导出的备份文件');
+    return;
+  }
+  const ok = await confirmDialog('将导入 ' + data.folders.length + ' 个文件夹、' + data.notes.length + ' 条便签，并与现有数据合并。继续？');
+  if(!ok) return;
+
+  const idMap = new Map();
+  data.folders.forEach(function(f){ idMap.set(f.id, uid()); });
+  data.folders.forEach(function(f){
+    db.folders.push({
+      id: idMap.get(f.id),
+      name: f.name || '未命名',
+      parentId: f.parentId ? (idMap.get(f.parentId) || null) : null,
+      color: typeof f.color === 'number' ? f.color : 0,
+      createdAt: f.createdAt || Date.now()
+    });
+  });
+  let base = db.notes.length ? Math.max.apply(null, db.notes.map(n => n.order)) + 1 : 0;
+  data.notes.forEach(function(n){
+    db.notes.push({
+      id: uid(),
+      folderId: n.folderId ? (idMap.get(n.folderId) || null) : null,
+      title: n.title || '',
+      content: n.content || '',
+      tags: Array.isArray(n.tags) ? n.tags.slice() : [],
+      pinned: !!n.pinned,
+      order: base++,
+      createdAt: n.createdAt || Date.now(),
+      updatedAt: n.updatedAt || Date.now()
+    });
+  });
+  save();
+  ui.folderId = null;
+  render();
+  toast('导入完成');
+}
+
+async function clearAll(){
+  const ok = await confirmDialog('将删除全部文件夹和便签，且无法撤销。建议先导出一份 JSON 备份。确定清空吗？');
+  if(!ok) return;
+  db = { folders:[], notes:[] };
+  ui.folderId = null;
+  ui.tagFilter = null;
+  save();
+  render();
+  toast('已清空');
+}
+
+function openExportMenu(){
+  const inFolder = !!ui.folderId;
+  const items = [];
+
+  if(inFolder){
+    items.push({ icon:'text', label:'导出 TXT（当前文件夹）',    onClick:function(){ exportTXT(ui.folderId); } });
+    items.push({ icon:'down', label:'导出 Markdown（当前文件夹）', onClick:function(){ exportMD(ui.folderId); } });
+  }
+  items.push({ icon:'text',  label:'导出 TXT（全部）',      onClick:function(){ exportTXT(null); } });
+  items.push({ icon:'down',  label:'导出 Markdown（全部）', onClick:function(){ exportMD(null); } });
+  items.push({ icon:'code',  label:'导出 HTML（全部）',     onClick:exportHTML });
+  items.push({ icon:'folder',label:'按文件夹结构导出…',     onClick:openTreeExportMenu });
+  items.push({ icon:'note',  label:'备份为 JSON',           onClick:exportJSON });
+  items.push({ icon:'folder',label:'从 JSON 恢复',          onClick:function(){ $('#fileInput').click(); } });
+  items.push({ icon:'trash', label:'清空所有数据', danger:true, onClick:clearAll });
+
+  menuItems('导出与备份', items);
+}
+
+function openMainMenu(){
+  menuItems('更多', [
+    { icon:'folder', label:'新建文件夹', onClick:function(){ newFolder(ui.folderId); } },
+    { icon:'tag',    label:'按标签浏览', onClick:openTagPicker },
+    { icon:'down',   label:'导出与备份', onClick:openExportMenu },
+    { icon:'info',   label:'关于数据保存', onClick:aboutSheet },
+    { icon:'info',   label:'关于这个 App', onClick:aboutApp }
+  ]);
+}
+
+function openTagPicker(){
+  const tags = allTags();
+  if(!tags.length){ toast('还没有标签，在便签里点「+ 标签」添加'); return; }
+  let h = '<h4>按标签浏览</h4>';
+  tags.forEach(function(p){
+    h += '<button class="sheet-item" data-pick-tag="' + esc(p[0]) + '">' +
+      icon('tag',19) + '<span>' + esc(p[0]) + '</span>' +
+      '<span style="margin-left:auto;color:var(--t2);font-size:12px">' + p[1] + '</span></button>';
+  });
+  openSheet(h);
+  $('#sheetRoot').querySelectorAll('[data-pick-tag]').forEach(function(b){
+    b.onclick = function(){
+      const t = b.dataset.pickTag;
+      closeSheet();
+      ui.tagFilter = t;
+      ui.searching = false;
+      render();
+    };
+  });
+}
+
+function aboutSheet(){
+  openSheet('<h4>关于数据保存</h4><div class="pd-msg">' +
+    '所有便签都保存在当前设备本地，不上传任何服务器。<br><br>' +
+    '这意味着：<br>· 换浏览器、换设备看不到<br>· 清除应用数据会丢失<br><br>' +
+    '所以建议定期用「导出与备份 → 备份为 JSON」存一份。</div>' +
+    '<div class="pd-actions"><button class="pd-btn primary" id="abOk">知道了</button></div>');
+  $('#abOk').onclick = function(){ closeSheet(); };
+}
+
+function aboutApp(){
+  openSheet('<h4>关于这个 App</h4><div class="pd-msg">' +
+    '单文件便签应用，数据存在本地。<br><br>' +
+    '手势与快捷键：<br>· 长按便签卡片 → 拖动排序<br>· 点卡片右侧 ⋯ → 置顶 / 标签 / 移动 / 删除<br>· 编辑器右上角眼睛 → Markdown 预览<br>· 顶部标签条 → 按标签筛选</div>' +
+    '<div class="pd-actions"><button class="pd-btn primary" id="abOk2">知道了</button></div>');
+  $('#abOk2').onclick = function(){ closeSheet(); };
+}
+
+/* ============================================================
+   9. 事件
+   ============================================================ */
+$('#view').addEventListener('click', function(e){
+  if(ui.suppressClick){ ui.suppressClick = false; return; }
+
+  const mNote = e.target.closest('[data-more-note]');
+  if(mNote) return openNoteMenu(mNote.dataset.moreNote);
+
+  const mFolder = e.target.closest('[data-more-folder]');
+  if(mFolder) return openFolderMenu(mFolder.dataset.moreFolder);
+
+  const oNote = e.target.closest('[data-open-note]');
+  if(oNote){
+    const nid = oNote.dataset.openNote;
+    openEditor(nid);
+    // 从搜索结果点进来，直接把关键词带进便签内查找
+    if(ui.searching && ui.query) setTimeout(function(){ openFind(ui.query); }, 300);
+    return;
+  }
+
+  const oFolder = e.target.closest('[data-open-folder]');
+  if(oFolder){
+    ui.folderId = oFolder.dataset.openFolder;
+    ui.view = 'notes';
+    ui.tagFilter = null;
+    render();
+    return;
+  }
+  const chip = e.target.closest('[data-tag]');
+  if(chip){
+    ui.tagFilter = chip.dataset.tag;
+    ui.searching = false;
+    render();
+    $('#view').scrollTop = 0;
+    return;
+  }
+  if(e.target.closest('[data-clear-tag]')){
+    ui.tagFilter = null;
+    render();
+    return;
+  }
+  if(e.target.closest('[data-new-note]'))   return newNote();
+  if(e.target.closest('[data-new-folder]')) return newFolder(ui.folderId);
+  if(e.target.closest('[data-go-root]')){
+    ui.folderId = null;
+    ui.view = 'notes';
+    render();
+  }
+});
+
+/* 拖拽：pointer 事件在列表容器上委托 */
+const viewEl = $('#view');
+viewEl.addEventListener('pointerdown', function(e){
+  if(e.pointerType === 'mouse' && e.button !== 0) return;
+  dragStart(e);
+}, { passive:true });
+
+window.addEventListener('pointermove', function(e){
+  if(!drag.el) return;
+  if(!drag.active){
+    // 长按判定期间：移动过多就取消
+    if(Math.abs(e.clientX - drag.startX) > 8 || Math.abs(e.clientY - drag.startY) > 8){
+      clearTimeout(drag.timer);
+      drag.el = null;
+    }
+    return;
+  }
+  e.preventDefault();
+  dragMove(e);
+}, { passive:false });
+
+window.addEventListener('pointerup', function(){
+  if(drag.active) dragEnd();
+  else { clearTimeout(drag.timer); drag.el = null; }
+  setTimeout(function(){ ui.suppressClick = false; }, 320);
+}, { passive:true });
+
+window.addEventListener('pointercancel', dragCancel, { passive:true });
+// 拖拽中阻止页面滚动
+document.addEventListener('touchmove', function(e){
+  if(drag.active) e.preventDefault();
+}, { passive:false });
+
+$('#btnBack').onclick = function(){
+  const f = getFolder(ui.folderId);
+  ui.folderId = f ? (f.parentId || null) : null;
+  render();
+};
+
+document.querySelectorAll('.tab').forEach(function(t){
+  t.onclick = function(){
+    ui.view = t.dataset.tab;
+    ui.searching = false;
+    ui.tagFilter = null;
+    $('#searchBar').classList.remove('on');
+    render();
+  };
+});
+
+$('#btnSearch').onclick = function(){
+  ui.searching = true;
+  ui.tagFilter = null;
+  $('#searchBar').classList.add('on');
+  $('#searchInput').value = '';
+  ui.query = '';
+  render();
+  setTimeout(function(){ $('#searchInput').focus(); }, 50);
+};
+$('#searchInput').addEventListener('input', function(e){
+  ui.query = e.target.value.trim();
+  render();
+});
+$('#searchCancel').onclick = function(){
+  ui.searching = false;
+  ui.query = '';
+  $('#searchBar').classList.remove('on');
+  render();
+};
+
+$('#btnMenu').onclick = openMainMenu;
+$('#btnFab').onclick = function(){
+  menuItems('新建', [
+    { icon:'note',   label:'新建便签',   onClick:newNote },
+    { icon:'folder', label:'新建文件夹', onClick:function(){ newFolder(ui.folderId); } }
+  ]);
+};
+
+/* 编辑器 */
+$('#edBack').onclick = closeEditor;
+$('#edTitle').addEventListener('input', function(){ scheduleSave(); if(ui.preview) renderPreview(); });
+$('#edBody').addEventListener('input', function(){ scheduleSave(); updateCount(); if(ui.preview) renderPreview(); });
+
+$('#edTags').addEventListener('click', function(e){
+  const del = e.target.closest('[data-del-tag]');
+  if(del){
+    const n = db.notes.find(x => x.id === ui.editingId);
+    if(!n) return;
+    n.tags = n.tags.filter(t => t !== del.dataset.delTag);
+    n.updatedAt = Date.now();
+    save(); renderTags(); setSaved('已保存');
+    return;
+  }
+  if(e.target.closest('#edAddTag')) addTags();
+});
+
+$('#edPreviewBtn').onclick = function(){
+  ui.preview = !ui.preview;
+  $('#editor').classList.toggle('preview', ui.preview);
+  $('#edPreviewBtn').classList.toggle('on', ui.preview);
+  if(ui.preview) renderPreview();
+};
+function renderPreview(){
+  $('#edPreview').innerHTML = '<div class="md-body">' + mdToHtml($('#edBody').value) + '</div>';
+}
+
+/* 便签内查找 */
+$('#edFindBtn').onclick = function(){ find.on ? closeFind() : openFind(''); };
+$('#edFindClose').onclick = closeFind;
+$('#edFindPrev').onclick = function(){ gotoFind(-1); };
+$('#edFindNext').onclick = function(){ gotoFind(1); };
+$('#edFindInput').addEventListener('input', function(){ renderFind(true); });
+$('#edFindInput').addEventListener('keydown', function(e){
+  if(e.key === 'Enter'){ e.preventDefault(); gotoFind(e.shiftKey ? -1 : 1); }
+  if(e.key === 'Escape'){ e.preventDefault(); closeFind(); }
+});
+$('#edFindView').addEventListener('click', function(e){
+  const m = e.target.closest('mark[data-fi]');
+  if(!m) return;
+  find.idx = Number(m.dataset.fi);
+  markFindCur();
+  updateFindCount();
+});
+
+$('#edMore').onclick = function(){
+  const n = db.notes.find(x => x.id === ui.editingId);
+  if(!n) return;
+  menuItems('更多操作', [
+    { icon:'pin',   label:n.pinned ? '取消置顶' : '置顶', onClick:function(){
+        n.pinned = !n.pinned; save(); toast(n.pinned ? '已置顶' : '已取消置顶');
+      } },
+    { icon:'tag',   label:'添加标签', onClick:addTags },
+    { icon:'search', label:'在本便签内查找', onClick:function(){ openFind(''); } },
+    { icon:'down',  label:'导出这条便签', onClick:function(){ commitEdits(); openNoteExportMenu(n.id); } },
+    { icon:'move',  label:'移动到…',  onClick:function(){ moveNote(n.id); } },
+    { icon:'trash', label:'删除', danger:true, onClick:async function(){
+        const ok = await confirmDialog('删除这条便签？此操作无法撤销。');
+        if(!ok) return;
+        db.notes = db.notes.filter(x => x.id !== n.id);
+        ui.editingId = null;
+        $('#editor').classList.remove('open');
+        save(); render(); toast('已删除');
+      } }
+  ]);
+};
+
+$('#fileInput').addEventListener('change', function(e){
+  const f = e.target.files && e.target.files[0];
+  if(f) importJSON(f);
+  e.target.value = '';
+});
+
+document.addEventListener('visibilitychange', function(){
+  if(document.hidden && ui.editingId){ clearTimeout(saveTimer); commitEdits(); }
+});
+
+/* ============================================================
+   10. 启动
+   ============================================================ */
+loadDB();
+render();
+
+/* 安卓返回键：逐层关闭，返回 true 表示已消费 */
+window.androidBack = function(){
+  if($('#sheetRoot').classList.contains('open')){ closeSheet(); return true; }
+  if(find.on){ closeFind(); return true; }
+  if(ui.editingId){ closeEditor(); return true; }
+  if(ui.searching){
+    ui.searching = false; ui.query = '';
+    $('#searchBar').classList.remove('on');
+    render(); return true;
+  }
+  if(ui.tagFilter){ ui.tagFilter = null; render(); return true; }
+  if(ui.folderId){
+    const f = getFolder(ui.folderId);
+    ui.folderId = f ? (f.parentId || null) : null;
+    render(); return true;
+  }
+  if(ui.view === 'tree'){ ui.view = 'notes'; render(); return true; }
+  return false;
+};
+
+if(matchMedia('(prefers-color-scheme: dark)').addEventListener){
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(){ render(); });
+}
+</script>
+</body>
+</html>
