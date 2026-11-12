@@ -463,6 +463,10 @@ h1,h2,h3,h4,p{margin:0}
 #editor.preview #edBody{display:none}
 #editor.preview #edPreview{display:block}
 #editor.preview #edTitle{opacity:.9}
+/* 预览态下如果还没写标题，别把「标题」这个占位符顶在最上面 */
+#editor.preview #edTitle:placeholder-shown{display:none}
+/* 正文首行已经是同名大标题时，顶部标题框不再重复一遍 */
+#editor.preview.dup-title #edTitle{display:none}
 .md-body h1,.md-body h2,.md-body h3,.md-body h4{font-weight:700; line-height:1.4; margin:18px 0 8px}
 .md-body h1{font-size:24px; margin-top:6px}
 .md-body h2{font-size:20px}
@@ -802,6 +806,7 @@ const PATH = {
   moon:'<path d="M20.2 14.6A8.6 8.6 0 0 1 9.4 3.8a8.6 8.6 0 1 0 10.8 10.8z"/>',
   auto:'<circle cx="12" cy="12" r="8.4"/><path d="M12 3.6a8.4 8.4 0 0 1 0 16.8z" fill="currentColor" stroke="none"/>',
   check:'<path d="M4.8 12.6l4.8 4.8 9.6-10.4"/>',
+  eye:'<path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.7"/>',
   palette:'<path d="M12 3.6c-4.7 0-8.4 3.7-8.4 8.4s3.7 8.4 8.4 8.4c1.3 0 2.2-.9 2.2-2 0-.5-.2-.9-.5-1.2-.3-.3-.4-.7-.4-1.1 0-1 .8-1.7 1.7-1.7h1.7c2.1 0 3.7-1.6 3.7-3.7 0-3.9-3.7-7.1-8.4-7.1z"/><circle cx="8.2" cy="10.6" r="1.15" fill="currentColor" stroke="none"/><circle cx="12" cy="7.9" r="1.15" fill="currentColor" stroke="none"/><circle cx="15.8" cy="10.2" r="1.15" fill="currentColor" stroke="none"/>'
 };
 function icon(name, size=22, sw=1.8){
@@ -816,7 +821,7 @@ function icon(name, size=22, sw=1.8){
 const STORE_KEY = 'noteapp.v1';
 
 /* 版本号：改这里，build-apk.sh 会拿它和 build.gradle 的 versionName 对账，不一致就拒绝打包 */
-const APP_VERSION = '1.4.0';
+const APP_VERSION = '1.5.0';
 
 /* 便签皮肤：目前只有纯色。颜色定义在 CSS 的 [data-skin="…"] 里，
    sw 只用来画选择面板上的色点 */
@@ -1564,15 +1569,13 @@ function applyEditorSkin(n){
   else ed.removeAttribute('data-skin');
 }
 
-function openEditor(id){
+function openEditor(id, asEdit){
   const n = db.notes.find(x => x.id === id);
   if(!n) return;
   ui.editingId = id;
-  ui.preview = false;
   // 记住打开时的样子：关闭时补进历史，短时间的编辑也不会漏
   ui.edOpenSnap = { title: n.title || '', content: n.content || '' };
   applyEditorSkin(n);
-  $('#editor').classList.remove('preview');
   resetFind();
   $('#edTitle').value = n.title || '';
   $('#edBody').value = n.content || '';
@@ -1581,8 +1584,15 @@ function openEditor(id){
   updateCount();
   renderTags();
   undoReset();
+  // 有正文的便签直接进预览——回来看的时候多半是「读」而不是「改」；
+  // 空白便签（新建或只写了标题）仍然从编辑开始，否则打开就没处下笔。
+  // asEdit 是从「编辑」菜单或搜索命中进来的，本来就奔着改，不必先绕一趟预览
   $('#editor').classList.add('open');
-  setTimeout(function(){ if(!n.title) $('#edTitle').focus(); }, 260);
+  setPreview(!asEdit && !!(n.content || '').trim());
+  // 换了另一条便签，滚动从头开始，别停在上一条的位置
+  $('#edPreview').scrollTop = 0;
+  $('#edBody').scrollTop = 0;
+  setTimeout(function(){ if(!n.title && !ui.preview) $('#edTitle').focus(); }, 260);
 }
 
 function renderTags(){
@@ -1624,8 +1634,9 @@ function editorState(){
 }
 
 function updateUndoBtns(){
-  $('#edUndo').disabled = undoStack.length < 2;
-  $('#edRedo').disabled = !redoStack.length;
+  // 预览态没有输入可以退，置灰即可，别让人点了没反应
+  $('#edUndo').disabled = !!ui.preview || undoStack.length < 2;
+  $('#edRedo').disabled = !!ui.preview || !redoStack.length;
 }
 
 function undoReset(){
@@ -1869,9 +1880,7 @@ function resetFind(){
 
 function openFind(q){
   find.on = true;
-  ui.preview = false;
-  $('#editor').classList.remove('preview');
-  $('#edPreviewBtn').classList.remove('on');
+  setPreview(false);
   $('#editor').classList.add('finding');
   $('#edFindBtn').classList.add('on');
   $('#edFindInput').value = q == null ? '' : q;
@@ -2085,8 +2094,8 @@ function openNoteMenu(nid){
         save(); render();
         toast(n.pinned ? '已置顶' : '已取消置顶');
       } },
-    { icon:'tag',   label:'编辑标签', onClick:function(){ openEditor(nid); setTimeout(addTags, 400); } },
-    { icon:'edit',  label:'编辑',     onClick:function(){ openEditor(nid); } },
+    { icon:'tag',   label:'编辑标签', onClick:function(){ openEditor(nid, true); setTimeout(addTags, 400); } },
+    { icon:'edit',  label:'编辑',     onClick:function(){ openEditor(nid, true); } },
     { icon:'down',  label:'导出这条便签', onClick:function(){ openNoteExportMenu(nid); } },
     { icon:'move',  label:'移动到…',  onClick:function(){ moveNote(nid); } },
     { icon:'trash', label:'删除', danger:true, onClick:async function(){
@@ -3023,7 +3032,8 @@ $('#view').addEventListener('click', function(e){
   const oNote = e.target.closest('[data-open-note]');
   if(oNote){
     const nid = oNote.dataset.openNote;
-    openEditor(nid);
+    // 从搜索进来是要定位关键词去改，直接进编辑，省得预览闪一下又切走
+    openEditor(nid, !!(ui.searching && ui.query));
     // 从搜索结果点进来，直接把关键词带进便签内查找
     if(ui.searching && ui.query) setTimeout(function(){ openFind(ui.query); }, 300);
     return;
@@ -3176,14 +3186,36 @@ $('#edTags').addEventListener('click', function(e){
   if(e.target.closest('#edAddTag')) addTags();
 });
 
-$('#edPreviewBtn').onclick = function(){
-  ui.preview = !ui.preview;
+/* 预览/编辑的切换只留这一个入口：按钮、打开便签、进入查找全走它，
+   否则状态、图标、DOM 类各改一遍，迟早对不上 */
+function setPreview(on){
+  const prev = $('#edPreview'), body = $('#edBody');
+  // 两边高度差很多，只能按滚动比例带过去；不带的话读到一半点「编辑」会跳回顶部
+  const fromEl = ui.preview ? prev : body;
+  const fromMax = fromEl.scrollHeight - fromEl.clientHeight;
+  const ratio = fromMax > 0 ? fromEl.scrollTop / fromMax : 0;
+
+  ui.preview = !!on;
+  const btn = $('#edPreviewBtn');
   $('#editor').classList.toggle('preview', ui.preview);
-  $('#edPreviewBtn').classList.toggle('on', ui.preview);
+  btn.classList.toggle('on', ui.preview);
+  btn.setAttribute('aria-label', ui.preview ? '编辑' : '预览');
+  btn.innerHTML = icon(ui.preview ? 'edit' : 'eye', 21, 1.9);
   if(ui.preview) renderPreview();
-};
+  updateUndoBtns();
+
+  const toEl = ui.preview ? prev : body;
+  const toMax = toEl.scrollHeight - toEl.clientHeight;
+  if(toMax > 0 && ratio > 0) toEl.scrollTop = toMax * ratio;
+}
+$('#edPreviewBtn').onclick = function(){ setPreview(!ui.preview); };
 function renderPreview(){
   $('#edPreview').innerHTML = '<div class="md-body">' + mdToHtml($('#edBody').value) + '</div>';
+  // 正文第一行往往就是「# 和标题同名」的大标题，这时顶部标题框会让同一句话出现两遍。
+  // 预览态把它让出来，编辑态照常显示，改标题进编辑即可
+  const h = $('#edPreview').querySelector('h1');
+  const t = ($('#edTitle').value || '').trim();
+  $('#editor').classList.toggle('dup-title', !!(h && t && h.textContent.trim() === t));
 }
 
 /* 便签内查找 */
