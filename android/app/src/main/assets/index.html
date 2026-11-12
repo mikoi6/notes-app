@@ -491,6 +491,34 @@ h1,h2,h3,h4,p{margin:0}
 .md-body a{color:var(--accent); text-decoration:none}
 .md-body strong{font-weight:700}
 .md-body .md-empty{color:var(--t2); font-size:14px}
+/* 表格：手机上列多时整块横向滚动，不把正文撑宽 */
+.md-body .md-table{overflow-x:auto; -webkit-overflow-scrolling:touch; margin:0 0 12px}
+.md-body table{border-collapse:collapse; width:100%; font-size:13.5px; line-height:1.55}
+.md-body th,.md-body td{
+  border:1px solid var(--line); padding:6px 9px;
+  text-align:left; vertical-align:top; word-break:break-word;
+  /* 给每列一个下限，否则窄屏上短列会被长内容挤成一行一个字 */
+  min-width:7.2em;
+}
+.md-body th{background:var(--surface-2); font-weight:600; white-space:nowrap}
+.md-body .ta-c{text-align:center}
+.md-body .ta-r{text-align:right}
+.md-body .ta-l{text-align:left}
+.md-body img{max-width:100%; height:auto; border-radius:8px; vertical-align:middle}
+.md-body li.task{list-style:none; margin-left:-17px}
+.md-body li.task input{
+  -webkit-appearance:none; appearance:none;
+  width:15px; height:15px; margin:0 7px 0 0;
+  vertical-align:-2px; opacity:1; position:relative;
+  border:1.5px solid var(--t2); border-radius:4px; background:transparent;
+}
+.md-body li.task input:checked{background:var(--accent); border-color:var(--accent)}
+.md-body li.task input:checked::after{
+  content:''; position:absolute; left:4px; top:0.5px;
+  width:4px; height:8px; border:solid #fff;
+  border-width:0 2px 2px 0; transform:rotate(45deg);
+}
+.md-body ul ul,.md-body ul ol,.md-body ol ul,.md-body ol ol{margin:3px 0}
 
 /* 便签内查找 */
 #edFind{display:none; align-items:center; gap:4px; padding:0 10px 10px}
@@ -751,7 +779,7 @@ function icon(name, size=22, sw=1.8){
 const STORE_KEY = 'noteapp.v1';
 
 /* 版本号：改这里，build-apk.sh 会拿它和 build.gradle 的 versionName 对账，不一致就拒绝打包 */
-const APP_VERSION = '1.2.0';
+const APP_VERSION = '1.3.0';
 
 /* 便签皮肤：目前只有纯色。颜色定义在 CSS 的 [data-skin="…"] 里，
    sw 只用来画选择面板上的色点 */
@@ -1174,94 +1202,289 @@ function viewSearch(){
 /* ============================================================
    3. Markdown 渲染（轻量，自写，无依赖）
    ============================================================ */
+/* Markdown 渲染
+   支持：ATX / setext 标题、段落与硬换行、粗体 / 斜体 / 删除线、行内代码、
+   围栏代码块、引用（内部可再放列表或表格）、有序 / 无序 / 任务列表（多级）、
+   GFM 表格（含 :--: 对齐）、链接、图片、自动链接、分割线、反斜杠转义。
+   所有文本先 esc()，链接与图片只放行 http(s)/mailto，避免 XSS。 */
 function mdToHtml(src){
   if(!src || !src.trim()) return '<p class="md-empty">还没有内容</p>';
 
-  // 行内样式：先抽出代码，避免被其它规则破坏
+  /* 已生成的 HTML 片段先存起来换成占位符，
+     否则后面的强调 / 链接规则会把标签本身再处理一遍 */
+  const hold = [];
+  function stash(html){ hold.push(html); return '\u0000' + (hold.length - 1) + '\u0000'; }
+
   function inline(text){
-    let s = esc(text);
-    const codes = [];
-    s = s.replace(/`([^`]+)`/g, function(_, c){ codes.push(c); return '\u0000' + (codes.length-1) + '\u0000'; });
-    s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-    s = s.replace(/__([^_]+)__/g, '<strong>$1</strong>');
+    let s = String(text);
+    const escs = [];
+
+    // 反斜杠转义先抽走，免得 \* 被当成强调
+    s = s.replace(/\\([\\`*_{}\[\]()#+\-.!|~>])/g, function(_, c){
+      escs.push(c); return '\u0001' + (escs.length - 1) + '\u0001';
+    });
+
+    s = esc(s);
+
+    // 行内代码
+    s = s.replace(/`([^`]+)`/g, function(_, c){
+      return stash('<code>' + c + '</code>');
+    });
+    // 图片必须排在链接前面，否则 ![alt](url) 会被链接规则抢先吃掉
+    s = s.replace(/!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g, function(_, alt, url){
+      return stash('<img src="' + url + '" alt="' + alt + '" loading="lazy" />');
+    });
+    // 链接
+    s = s.replace(/\[([^\]]+)\]\(((?:https?:\/\/|mailto:)[^\s)]+)\)/g, function(_, txt, url){
+      return stash('<a href="' + url + '" target="_blank" rel="noopener">' + txt + '</a>');
+    });
+    // <https://…> 自动链接（此时尖括号已被 esc 成 &lt; &gt;）
+    s = s.replace(/&lt;((?:https?:\/\/|mailto:)[^\s&]+)&gt;/g, function(_, url){
+      return stash('<a href="' + url + '" target="_blank" rel="noopener">' + url + '</a>');
+    });
+    // 裸链接：要求前面是行首、空白或标点，避免命中已生成的 href="…"
+    s = s.replace(/(^|[\s(（\[【「：:，,、])(https?:\/\/[A-Za-z0-9\-._~:\/?#\[\]@!$&'()*+,;=%]+)/g,
+      function(_, pre, url){
+        return pre + stash('<a href="' + url + '" target="_blank" rel="noopener">' + url + '</a>');
+      });
+
+    // 强调
+    s = s.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/__([^_\n]+)__/g, '<strong>$1</strong>');
     s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
-    s = s.replace(/~~([^~]+)~~/g, '<del>$1</del>');
-    s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-    s = s.replace(/\u0000(\d+)\u0000/g, function(_, i){ return '<code>' + codes[+i] + '</code>'; });
+    s = s.replace(/(^|[\s(（])_([^_\n]+)_(?=$|[\s)）.。,，!！?？:：;；])/g, '$1<em>$2</em>');
+    s = s.replace(/~~([^~\n]+)~~/g, '<del>$1</del>');
+
+    s = s.replace(/\u0000(\d+)\u0000/g, function(_, i){ return hold[+i]; });
+    s = s.replace(/\u0001(\d+)\u0001/g, function(_, i){ return escs[+i]; });
     return s;
   }
 
-  const lines = src.replace(/\r\n?/g, '\n').split('\n');
-  const out = [];
-  let i = 0, para = [];
-
-  function flushPara(){
-    if(para.length){ out.push('<p>' + inline(para.join(' ')) + '</p>'); para = []; }
+  // 段落内换行：行尾两个空格或反斜杠 = 硬换行，先用 \u0002 占位
+  function joinPara(arr){
+    let s = '', hardPrev = false;
+    for(let k = 0; k < arr.length; k++){
+      const raw = arr[k];
+      const hard = /( {2,}|\\)$/.test(raw);
+      const clean = hard ? raw.replace(/( {2,}|\\)$/, '') : raw;
+      if(k) s += hardPrev ? '\u0002' : ' ';
+      s += clean;
+      hardPrev = hard;
+    }
+    return s;
   }
 
-  while(i < lines.length){
-    const line = lines[i];
-
-    // 代码块
-    if(/^\s*```/.test(line)){
-      flushPara();
-      const buf = [];
-      i++;
-      while(i < lines.length && !/^\s*```/.test(lines[i])){ buf.push(lines[i]); i++; }
-      i++;
-      out.push('<pre><code>' + esc(buf.join('\n')) + '</code></pre>');
-      continue;
-    }
-    // 标题
-    let m = line.match(/^(#{1,6})\s+(.*)$/);
-    if(m){
-      flushPara();
-      const lv = m[1].length;
-      out.push('<h' + lv + '>' + inline(m[2]) + '</h' + lv + '>');
-      i++; continue;
-    }
-    // 分割线
-    if(/^\s*([-*_])\s*\1\s*\1[\s\1]*$/.test(line)){
-      flushPara(); out.push('<hr />'); i++; continue;
-    }
-    // 引用
-    if(/^\s*>\s?/.test(line)){
-      flushPara();
-      const buf = [];
-      while(i < lines.length && /^\s*>\s?/.test(lines[i])){
-        buf.push(lines[i].replace(/^\s*>\s?/, '')); i++;
-      }
-      out.push('<blockquote>' + inline(buf.join(' ')) + '</blockquote>');
-      continue;
-    }
-    // 无序列表
-    if(/^\s*[-*+]\s+/.test(line)){
-      flushPara();
-      const buf = [];
-      while(i < lines.length && /^\s*[-*+]\s+/.test(lines[i])){
-        buf.push('<li>' + inline(lines[i].replace(/^\s*[-*+]\s+/, '')) + '</li>'); i++;
-      }
-      out.push('<ul>' + buf.join('') + '</ul>');
-      continue;
-    }
-    // 有序列表
-    if(/^\s*\d+[.)]\s+/.test(line)){
-      flushPara();
-      const buf = [];
-      while(i < lines.length && /^\s*\d+[.)]\s+/.test(lines[i])){
-        buf.push('<li>' + inline(lines[i].replace(/^\s*\d+[.)]\s+/, '')) + '</li>'); i++;
-      }
-      out.push('<ol>' + buf.join('') + '</ol>');
-      continue;
-    }
-    // 空行
-    if(!line.trim()){ flushPara(); i++; continue; }
-
-    para.push(line.trim());
-    i++;
+  // 表格分隔行：|---|---| 或 |:--|--:|:-:|（也支持只有一列的 |---|）
+  function isTableSep(line){
+    if(line.indexOf('|') === -1) return false;
+    return /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/.test(line);
   }
-  flushPara();
-  return out.join('\n');
+
+  // 拆一行表格；行内代码里的 | 不算分隔
+  function splitRow(line){
+    let s = String(line).trim();
+    if(s.charAt(0) === '|') s = s.slice(1);
+    if(s.charAt(s.length - 1) === '|' && s.charAt(s.length - 2) !== '\\') s = s.slice(0, -1);
+    const cells = [];
+    let cur = '', inCode = false;
+    for(let k = 0; k < s.length; k++){
+      const ch = s.charAt(k);
+      if(ch === '\\' && s.charAt(k + 1) === '|'){ cur += '|'; k++; continue; }
+      if(ch === '`'){ inCode = !inCode; cur += ch; continue; }
+      if(ch === '|' && !inCode){ cells.push(cur.trim()); cur = ''; continue; }
+      cur += ch;
+    }
+    cells.push(cur.trim());
+    return cells;
+  }
+
+  function alignOf(sep){
+    return splitRow(sep).map(function(c){
+      const l = c.charAt(0) === ':';
+      const r = c.charAt(c.length - 1) === ':';
+      if(l && r) return 'c';
+      if(r) return 'r';
+      if(l) return 'l';
+      return '';
+    });
+  }
+
+  function tableHtml(head, aligns, rows){
+    const cols = Math.max(head.length, aligns.length);
+    function cell(tag, k, text){
+      const al = aligns[k] ? ' class="ta-' + aligns[k] + '"' : '';
+      return '<' + tag + al + '>' + inline(text || '') + '</' + tag + '>';
+    }
+    let h = '<div class="md-table"><table><thead><tr>';
+    for(let k = 0; k < cols; k++) h += cell('th', k, head[k]);
+    h += '</tr></thead><tbody>';
+    rows.forEach(function(r){
+      h += '<tr>';
+      for(let k = 0; k < cols; k++) h += cell('td', k, r[k]);
+      h += '</tr>';
+    });
+    return h + '</tbody></table></div>';
+  }
+
+  // 列表项：缩进 + 是否有序 + 序号 + 文本
+  function listItem(line){
+    const m = line.match(/^(\s*)(?:([-*+])|(\d+)[.)])\s+(.*)$/);
+    if(!m) return null;
+    return {
+      indent: m[1].replace(/\t/g, '    ').length,
+      ordered: !!m[3],
+      num: m[3] ? parseInt(m[3], 10) : 0,
+      text: m[4]
+    };
+  }
+
+  /* 多级列表：靠缩进递归。更深的项塞进上一个 <li> 里，
+     这样项目符号层级才不会全挤成一层 */
+  function listHtml(items){
+    let idx = 0;
+    function walk(indent){
+      let html = '', tag = null, start = 1;
+      while(idx < items.length){
+        const it = items[idx];
+        if(it.indent < indent) break;
+        if(it.indent > indent){
+          const sub = walk(it.indent);
+          if(sub) html = html.replace(/<\/li>$/, sub + '</li>');
+          continue;
+        }
+        const t = it.ordered ? 'ol' : 'ul';
+        if(tag && t !== tag) break;
+        if(!tag){ tag = t; start = it.ordered ? it.num : 1; }
+        idx++;
+        let body = it.text, task = null;
+        const tm = body.match(/^\[([ xX])\]\s+(.*)$/);
+        if(tm){ task = tm[1].toLowerCase() === 'x'; body = tm[2]; }
+        html += '<li' + (task === null ? '' : ' class="task"') + '>' +
+                (task === null ? '' :
+                  '<input type="checkbox" disabled' + (task ? ' checked' : '') + ' /> ') +
+                inline(body) + '</li>';
+      }
+      if(!tag) return html;
+      return '<' + tag + (tag === 'ol' && start > 1 ? ' start="' + start + '"' : '') + '>' +
+             html + '</' + tag + '>';
+    }
+    // 顶层可能有多个并列列表（无序接有序），逐个消费完
+    let html = '';
+    while(idx < items.length){
+      const before = idx;
+      html += walk(items[before].indent);
+      if(idx === before) idx++;
+    }
+    return html;
+  }
+
+  function parseBlocks(lines){
+    const out = [];
+    let i = 0, para = [];
+
+    function flushPara(){
+      if(!para.length) return;
+      // 段落里的换行拼成一行，硬换行处留 \u0002 占位
+      out.push('<p>' + inline(joinPara(para)).replace(/\u0002/g, '<br />') + '</p>');
+      para = [];
+    }
+
+    while(i < lines.length){
+      const line = lines[i];
+
+      // 围栏代码块（``` 或 ~~~）
+      const fence = line.match(/^\s*(```|~~~)/);
+      if(fence){
+        flushPara();
+        const mark = fence[1];
+        const buf = [];
+        i++;
+        while(i < lines.length && lines[i].indexOf(mark) !== 0 && !/^\s*(```|~~~)\s*$/.test(lines[i])){
+          buf.push(lines[i]); i++;
+        }
+        i++;
+        out.push('<pre><code>' + esc(buf.join('\n')) + '</code></pre>');
+        continue;
+      }
+
+      // 表格：当前行含 |，下一行是分隔行
+      if(line.indexOf('|') !== -1 && i + 1 < lines.length && isTableSep(lines[i + 1])){
+        flushPara();
+        const head = splitRow(line);
+        const aligns = alignOf(lines[i + 1]);
+        i += 2;
+        const rows = [];
+        while(i < lines.length && lines[i].trim() && lines[i].indexOf('|') !== -1){
+          rows.push(splitRow(lines[i])); i++;
+        }
+        out.push(tableHtml(head, aligns, rows));
+        continue;
+      }
+
+      // ATX 标题
+      let m = line.match(/^(#{1,6})\s+(.*)$/);
+      if(m){
+        flushPara();
+        const lv = m[1].length;
+        out.push('<h' + lv + '>' + inline(m[2]) + '</h' + lv + '>');
+        i++; continue;
+      }
+
+      // 分割线
+      if(/^\s*([-*_])\s*\1\s*\1[\s\1]*$/.test(line)){
+        flushPara(); out.push('<hr />'); i++; continue;
+      }
+
+      // setext 标题：下一行全是 = 或 -
+      if(line.trim() && i + 1 < lines.length && /^\s*(=+|-+)\s*$/.test(lines[i + 1])){
+        flushPara();
+        const lv = lines[i + 1].indexOf('=') !== -1 ? 1 : 2;
+        out.push('<h' + lv + '>' + inline(line.trim()) + '</h' + lv + '>');
+        i += 2; continue;
+      }
+
+      // 引用：内部递归解析，所以引用里也能放列表和表格
+      if(/^\s*>/.test(line)){
+        flushPara();
+        const buf = [];
+        while(i < lines.length && /^\s*>/.test(lines[i])){
+          buf.push(lines[i].replace(/^\s*>\s?/, '')); i++;
+        }
+        out.push('<blockquote>' + parseBlocks(buf).join('\n') + '</blockquote>');
+        continue;
+      }
+
+      // 列表（连续收集，再按缩进递归）
+      if(listItem(line)){
+        flushPara();
+        const items = [];
+        while(i < lines.length){
+          const it = listItem(lines[i]);
+          if(it){
+            // 同级但有序/无序不同 = 另一个列表，让外层重新开始，别把后半个吞掉
+            if(items.length && it.indent === items[0].indent && it.ordered !== items[0].ordered) break;
+            items.push(it); i++; continue;
+          }
+          // 列表项之间允许一个空行，后面还是列表就继续
+          if(!lines[i].trim() && i + 1 < lines.length && listItem(lines[i + 1])){ i++; continue; }
+          break;
+        }
+        out.push(listHtml(items));
+        continue;
+      }
+
+      // 空行
+      if(!line.trim()){ flushPara(); i++; continue; }
+
+      // 普通段落行：保留行尾空格（硬换行要用）
+      para.push(line.replace(/^\s+/, ''));
+      i++;
+    }
+    flushPara();
+    return out;
+  }
+
+  return parseBlocks(src.replace(/\r\n?/g, '\n').split('\n')).join('\n');
 }
 
 /* ============================================================
@@ -2069,7 +2292,15 @@ function buildNoteHTML(n){
     '.md hr{border:0;border-top:1px solid #e2e2e7;margin:20px 0}\n' +
     '.md a{color:#e8890c;text-decoration:none}\n' +
     '.md .md-empty{color:#8a8a8e}\n' +
-    '@media print{body{padding:0;max-width:none}.md pre{background:none;border:1px solid #ddd}}\n' +
+    '.md .md-table{overflow-x:auto;margin:0 0 14px}\n' +
+    '.md table{border-collapse:collapse;width:100%;font-size:14px}\n' +
+    '.md th,.md td{border:1px solid #e2e2e7;padding:6px 10px;text-align:left;vertical-align:top;word-break:break-word}\n' +
+    '.md th{background:#f6f6f9;font-weight:600;white-space:nowrap}\n' +
+    '.md .ta-c{text-align:center}.md .ta-r{text-align:right}\n' +
+    '.md img{max-width:100%;height:auto;border-radius:8px}\n' +
+    '.md li.task{list-style:none;margin-left:-17px}\n' +
+    '@media print{body{padding:0;max-width:none}.md pre{background:none;border:1px solid #ddd}' +
+    '.md th{background:none}.md tr{page-break-inside:avoid}}\n' +
     '</style>\n</head>\n<body>\n' +
     // 正文自己写了 H1 就不再重复一个
     (/^#\s+\S/.test(firstMeaningfulLine(n.content)) ? '' : '<h1>' + (n.pinned ? '★ ' : '') + esc(title) + '</h1>\n') +
