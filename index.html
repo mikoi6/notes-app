@@ -3040,9 +3040,14 @@ async function importJSON(file){
       pinned: !!n.pinned,
       order: base++,
       createdAt: n.createdAt || Date.now(),
-      updatedAt: n.updatedAt || Date.now()
+      updatedAt: n.updatedAt || Date.now(),
+      // 备份里带了皮肤和历史版本就一起还原，否则恢复出来的便签全长一个样
+      skin: typeof n.skin === 'string' ? n.skin : null,
+      history: Array.isArray(n.history) ? n.history.slice() : []
     });
   });
+  // 备份可能是改过的脏数据：皮肤 id 不存在、历史项缺字段，都在这里统一清掉
+  normalize();
   save();
   ui.folderId = null;
   render();
