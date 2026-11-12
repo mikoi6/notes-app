@@ -570,11 +570,20 @@ mark.hl{
 :root[data-theme="dark"] mark.hl{background:rgba(255,167,38,.26)}
 
 .ed-foot{
-  flex:none; display:flex; justify-content:space-between;
-  padding:10px 20px calc(10px + env(safe-area-inset-bottom));
+  flex:none; display:flex; justify-content:space-between; align-items:center;
+  padding:4px 14px calc(4px + env(safe-area-inset-bottom));
   font-size:11px; color:var(--t2);
   border-top:.5px solid var(--line);
 }
+.ed-undo{display:flex; align-items:center; gap:1px}
+.ed-undo #edCount{margin-left:6px}
+.ubtn{
+  width:30px; height:30px; display:flex; align-items:center; justify-content:center;
+  border:0; background:none; padding:0; border-radius:9px;
+  color:var(--t2); -webkit-tap-highlight-color:transparent;
+}
+.ubtn:active:not(:disabled){background:var(--surface-2); color:var(--text)}
+.ubtn:disabled{opacity:.25}
 
 /* ============================================================
    6. 菜单 / 对话框 / 提示
@@ -603,6 +612,26 @@ mark.hl{
 .sheet-item:active{background:var(--surface-2)}
 .sheet-item.danger{color:var(--danger)}
 .sheet-item:disabled{opacity:.32}
+
+/* 历史版本列表 */
+.hist-now{
+  display:flex; justify-content:space-between; align-items:baseline;
+  font-size:12px; color:var(--t2);
+  padding:6px 2px 10px;
+}
+.hist-list{display:flex; flex-direction:column; gap:1px; margin:0 -8px}
+.hist-item{
+  display:flex; align-items:center; gap:10px;
+  width:100%; text-align:left; font:inherit;
+  border:0; background:none; padding:9px 8px; border-radius:12px;
+  color:var(--text); -webkit-tap-highlight-color:transparent;
+}
+.hist-item:active{background:var(--surface-2)}
+.hist-item svg{color:var(--t2); flex:none}
+.hist-main{flex:1; min-width:0; display:flex; flex-direction:column; gap:2px}
+.hist-time{font-size:13.5px}
+.hist-snip{font-size:12px; color:var(--t2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.hist-len{font-size:11px; color:var(--t2); flex:none}
 .sheet-item.on{color:var(--accent)}
 .pick-desc{margin-left:auto; color:var(--t2); font-size:12px}
 .pick-ok{margin-left:8px; display:flex; color:var(--accent)}
@@ -732,7 +761,15 @@ mark.hl{
   <div id="edFindView"></div>
   <div id="edPreview"></div>
   <footer class="ed-foot">
-    <span id="edCount">0 字</span>
+    <div class="ed-undo">
+      <button class="ubtn" id="edUndo" aria-label="撤回" title="撤回" disabled>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M8 5L4 9l4 4"/><path d="M4 9h10a5.2 5.2 0 0 1 0 10.4h-3"/></svg>
+      </button>
+      <button class="ubtn" id="edRedo" aria-label="重做" title="重做" disabled>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M16 5l4 4-4 4"/><path d="M20 9H10a5.2 5.2 0 0 0 0 10.4h3"/></svg>
+      </button>
+      <span id="edCount">0 字</span>
+    </div>
     <span id="edSaved"></span>
   </footer>
 </div>
@@ -779,7 +816,7 @@ function icon(name, size=22, sw=1.8){
 const STORE_KEY = 'noteapp.v1';
 
 /* 版本号：改这里，build-apk.sh 会拿它和 build.gradle 的 versionName 对账，不一致就拒绝打包 */
-const APP_VERSION = '1.3.0';
+const APP_VERSION = '1.4.0';
 
 /* 便签皮肤：目前只有纯色。颜色定义在 CSS 的 [data-skin="…"] 里，
    sw 只用来画选择面板上的色点 */
@@ -859,11 +896,32 @@ function normalize(){
     if(typeof n.order !== 'number') n.order = i;
     // 皮肤是后加的字段，老数据没有；已删除的皮肤 id 也在这里清掉
     if(n.skin && !SKINS.some(s => s.id === n.skin)) n.skin = null;
+    // 历史版本：导入的 JSON 可能是脏数据，只留结构正确的项
+    if(n.history !== undefined && !Array.isArray(n.history)) n.history = [];
+    if(Array.isArray(n.history)){
+      n.history = n.history.filter(function(h){
+        return h && typeof h === 'object' && typeof h.content === 'string';
+      }).map(function(h){
+        return { at: Number(h.at) || Date.now(), title: String(h.title || ''), content: String(h.content || '') };
+      });
+      trimHistory(n.history);
+    }
   });
 }
 function save(){
-  try{ localStorage.setItem(STORE_KEY, JSON.stringify(db)); }
-  catch(e){ toast('存储空间不足，建议导出备份'); }
+  try{ localStorage.setItem(STORE_KEY, JSON.stringify(db)); return; }
+  catch(e){}
+  // 存不下多半是历史版本占的地方 —— 正文优先，先清历史再试一次
+  let dropped = false;
+  db.notes.forEach(function(n){ if(n.history && n.history.length){ n.history = []; dropped = true; } });
+  if(dropped){
+    try{
+      localStorage.setItem(STORE_KEY, JSON.stringify(db));
+      toast('空间不足，已清空历史版本');
+      return;
+    }catch(e2){}
+  }
+  toast('存储空间不足，建议导出备份');
 }
 
 function seed(){
@@ -1511,6 +1569,8 @@ function openEditor(id){
   if(!n) return;
   ui.editingId = id;
   ui.preview = false;
+  // 记住打开时的样子：关闭时补进历史，短时间的编辑也不会漏
+  ui.edOpenSnap = { title: n.title || '', content: n.content || '' };
   applyEditorSkin(n);
   $('#editor').classList.remove('preview');
   resetFind();
@@ -1520,6 +1580,7 @@ function openEditor(id){
   setSaved('');
   updateCount();
   renderTags();
+  undoReset();
   $('#editor').classList.add('open');
   setTimeout(function(){ if(!n.title) $('#edTitle').focus(); }, 260);
 }
@@ -1544,11 +1605,200 @@ function commitEdits(){
   const t = $('#edTitle').value.trim();
   const c = $('#edBody').value;
   if(n.title === t && n.content === c) return;
+  recordHistory(n, n.title, n.content);   // 改之前先把旧值记进历史
   n.title = t;
   n.content = c;
   n.updatedAt = Date.now();
   save();
   setSaved('已保存');
+}
+
+/* ---------- 撤回 / 重做 ----------
+   栈里存整份 {title, content}。按时间节流记快照，而不是每次按键都记：
+   否则打 200 个字就 200 层，撤回一次只退一个字符，等于没用。 */
+const UNDO_MAX = 300;
+let undoStack = [], redoStack = [], undoApplying = false, undoLastPush = 0;
+
+function editorState(){
+  return { title: $('#edTitle').value, content: $('#edBody').value };
+}
+
+function updateUndoBtns(){
+  $('#edUndo').disabled = undoStack.length < 2;
+  $('#edRedo').disabled = !redoStack.length;
+}
+
+function undoReset(){
+  undoStack = [editorState()];
+  redoStack = [];
+  undoLastPush = 0;
+  updateUndoBtns();
+}
+
+function undoSnapshot(){
+  const s = editorState();
+  const top = undoStack[undoStack.length - 1];
+  if(top && top.title === s.title && top.content === s.content) return;
+  undoStack.push(s);
+  if(undoStack.length > UNDO_MAX) undoStack.shift();
+  redoStack = [];          // 有新输入，原来的重做链就断了
+  updateUndoBtns();
+}
+
+// 输入时调用：700ms 内的连续按键合并成一版
+function maybeUndoSnapshot(){
+  if(undoApplying) return;
+  const now = Date.now();
+  if(now - undoLastPush < 700) return;
+  undoLastPush = now;
+  undoSnapshot();
+}
+
+function applyEditorState(s){
+  undoApplying = true;
+  $('#edTitle').value = s.title;
+  $('#edBody').value = s.content;
+  updateCount();
+  if(ui.preview) renderPreview();
+  undoApplying = false;
+  updateUndoBtns();
+}
+
+function doUndo(){
+  if(undoApplying) return;
+  const cur = editorState();
+  const top = undoStack[undoStack.length - 1];
+  // 当前状态可能还没进栈（刚敲完就按撤回），先补进去，
+  // 这样撤回回到的是「上一版」，而不是原地不动
+  if(!top || top.title !== cur.title || top.content !== cur.content) undoStack.push(cur);
+  if(undoStack.length < 2){ toast('没有可撤回的修改'); return; }
+  redoStack.push(undoStack.pop());
+  applyEditorState(undoStack[undoStack.length - 1]);
+  undoLastPush = 0;
+  commitEdits();
+  toast('已撤回');
+}
+
+function doRedo(){
+  if(undoApplying || !redoStack.length){ toast('没有可重做的修改'); return; }
+  const s = redoStack.pop();
+  undoStack.push(s);
+  applyEditorState(s);
+  undoLastPush = 0;
+  commitEdits();
+  toast('已重做');
+}
+
+/* ---------- 历史版本 ----------
+   只留「过去的版本」，当前内容不进 history。
+   60 秒内的连续提交合并成一条，否则一次编辑会攒出几十个碎片。
+   关闭便签时再强制补一条本次打开时的样子，短编辑也不会漏。 */
+const HIST_MAX = 30;
+const HIST_GAP = 60 * 1000;
+const HIST_BUDGET = 120000;   // 单条便签历史字符总量上限，防止把 localStorage 撑爆
+
+function trimHistory(hist){
+  while(hist.length > HIST_MAX) hist.shift();
+  let total = 0;
+  hist.forEach(function(h){ total += (h.title || '').length + (h.content || '').length; });
+  while(hist.length > 1 && total > HIST_BUDGET){
+    const g = hist.shift();
+    total -= (g.title || '').length + (g.content || '').length;
+  }
+}
+
+function recordHistory(n, oldTitle, oldContent, force){
+  if(!n) return;
+  if(!oldTitle && !oldContent) return;
+  if(!n.history) n.history = [];
+  const hist = n.history;
+  const last = hist[hist.length - 1];
+  if(last && last.title === oldTitle && last.content === oldContent) return;
+  if(!force && last && Date.now() - last.at < HIST_GAP) return;
+  hist.push({ at: Date.now(), title: oldTitle, content: oldContent });
+  trimHistory(hist);
+}
+
+function fmtHistTime(ts){
+  const d = new Date(ts), now = new Date();
+  const pad = function(x){ return x < 10 ? '0' + x : '' + x; };
+  const hm = pad(d.getHours()) + ':' + pad(d.getMinutes());
+  if(d.toDateString() === now.toDateString()) return '今天 ' + hm;
+  const yd = new Date(now.getTime() - 86400000);
+  if(d.toDateString() === yd.toDateString()) return '昨天 ' + hm;
+  if(d.getFullYear() === now.getFullYear()) return (d.getMonth() + 1) + ' 月 ' + d.getDate() + ' 日 ' + hm;
+  return d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate() + ' ' + hm;
+}
+
+function histSnippet(v){
+  let c = String(v.content || '')
+    .replace(/^#{1,6}\s+/, '')      // 开头的 # 标题标记
+    .replace(/\s+/g, ' ')
+    .trim();
+  // 正文第一行常常就是标题本身，摘要里没必要再重复一遍
+  if(v.title && c.indexOf(v.title) === 0){
+    c = c.slice(v.title.length).replace(/^[\s·:：,，.。\-—]+/, '');
+  }
+  const t = c || v.title || '';
+  if(!t) return '（空）';
+  return t.length > 44 ? t.slice(0, 44) + '…' : t;
+}
+
+function charCount(s){ return String(s || '').replace(/\s/g, '').length; }
+
+function openHistory(){
+  const n = db.notes.find(x => x.id === ui.editingId);
+  if(!n) return;
+  commitEdits();
+  const hist = (n.history || []).slice().reverse();   // 新的在上面
+
+  let h = '<h4>历史版本</h4>';
+  if(!hist.length){
+    h += '<div class="pd-msg">还没有历史版本。<br><br>' +
+         '编辑停下来一会儿、或关掉这条便签时，会记一个版本，最多保留 30 个。</div>' +
+         '<div class="pd-actions"><button class="pd-btn primary" id="hsOk">知道了</button></div>';
+    openSheet(h);
+    $('#hsOk').onclick = function(){ closeSheet(); };
+    return;
+  }
+
+  h += '<div class="hist-now"><span>当前版本</span><span>' + charCount(n.content) + ' 字</span></div>';
+  h += '<div class="hist-list">';
+  hist.forEach(function(v, i){
+    h += '<button class="hist-item" data-hi="' + i + '">' +
+           icon('clock', 17, 1.9) +
+           '<span class="hist-main">' +
+             '<span class="hist-time">' + esc(fmtHistTime(v.at)) + '</span>' +
+             '<span class="hist-snip">' + esc(histSnippet(v)) + '</span>' +
+           '</span>' +
+           '<span class="hist-len">' + charCount(v.content) + ' 字</span>' +
+         '</button>';
+  });
+  h += '</div>';
+  openSheet(h);
+
+  $('#sheetRoot').querySelectorAll('[data-hi]').forEach(function(b){
+    b.onclick = function(){ restoreHistory(n, hist[+b.dataset.hi]); };
+  });
+}
+
+function restoreHistory(n, v){
+  confirmDialog('恢复到 ' + fmtHistTime(v.at) + ' 的版本？当前内容会先存进历史，之后还能切回来。').then(function(ok){
+    if(!ok) return;
+    recordHistory(n, n.title, n.content, true);
+    n.title = v.title || '';
+    n.content = v.content || '';
+    n.updatedAt = Date.now();
+    save();
+    if(ui.editingId === n.id){
+      applyEditorState({ title: n.title, content: n.content });
+      undoReset();
+      renderTags();
+      setSaved('已恢复');
+    }
+    render();
+    toast('已恢复');
+  });
 }
 
 function scheduleSave(){
@@ -1560,6 +1810,13 @@ function scheduleSave(){
 function closeEditor(){
   const n = db.notes.find(x => x.id === ui.editingId);
   commitEdits();
+  if(n && ui.edOpenSnap){
+    // 只有真的改过才补记；点开看一眼就关掉不该攒历史
+    if(ui.edOpenSnap.title !== n.title || ui.edOpenSnap.content !== n.content){
+      recordHistory(n, ui.edOpenSnap.title, ui.edOpenSnap.content, true);
+    }
+    ui.edOpenSnap = null;
+  }
   if(n && !n.title && !(n.content || '').trim()){
     db.notes = db.notes.filter(x => x.id !== n.id);
     save();
@@ -2888,8 +3145,23 @@ $('#btnFab').onclick = function(){
 
 /* 编辑器 */
 $('#edBack').onclick = closeEditor;
-$('#edTitle').addEventListener('input', function(){ scheduleSave(); if(ui.preview) renderPreview(); });
-$('#edBody').addEventListener('input', function(){ scheduleSave(); updateCount(); if(ui.preview) renderPreview(); });
+$('#edTitle').addEventListener('input', function(){ maybeUndoSnapshot(); scheduleSave(); if(ui.preview) renderPreview(); });
+$('#edBody').addEventListener('input', function(){ maybeUndoSnapshot(); scheduleSave(); updateCount(); if(ui.preview) renderPreview(); });
+
+$('#edUndo').onclick = doUndo;
+$('#edRedo').onclick = doRedo;
+
+// Ctrl/Cmd + Z 撤回，Ctrl + Shift + Z 或 Ctrl + Y 重做
+document.addEventListener('keydown', function(e){
+  if(!$('#editor').classList.contains('open')) return;
+  if(!(e.ctrlKey || e.metaKey) || e.altKey) return;
+  const ae = document.activeElement;
+  // 便签内查找框里交给浏览器自己处理
+  if(ae && ae.id === 'edFindInput') return;
+  const k = (e.key || '').toLowerCase();
+  if(k === 'z' && !e.shiftKey){ e.preventDefault(); doUndo(); }
+  else if((k === 'z' && e.shiftKey) || k === 'y'){ e.preventDefault(); doRedo(); }
+});
 
 $('#edTags').addEventListener('click', function(e){
   const del = e.target.closest('[data-del-tag]');
@@ -2941,6 +3213,7 @@ $('#edMore').onclick = function(){
       } },
     { icon:'tag',   label:'添加标签', onClick:addTags },
     { icon:'palette', label:'背景皮肤', onClick:function(){ openSkinPicker(n.id); } },
+    { icon:'clock', label:'历史版本', onClick:openHistory },
     { icon:'search', label:'在本便签内查找', onClick:function(){ openFind(''); } },
     { icon:'down',  label:'导出这条便签', onClick:function(){ commitEdits(); openNoteExportMenu(n.id); } },
     { icon:'move',  label:'移动到…',  onClick:function(){ moveNote(n.id); } },
