@@ -9,13 +9,22 @@
 <meta name="format-detection" content="telephone=no" />
 <title>便签</title>
 <script>
-/* 首屏就把主题定下来，避免先白后黑闪一下。
-   这段必须放在样式之前，且不能依赖下面任何函数。 */
+/* 首屏就把主题和个性化样式定下来，避免先橙后蓝、先网格后斑马地闪一下。
+   这段必须放在样式之前，且不能依赖下面任何函数。
+   个性化全部落在 <html> 的 data-* 上，CSS 用属性选择器接管，见样式第 1 节。 */
 (function(){
-  var t = 'system';
+  var t = 'system', look = {};
   try{ t = localStorage.getItem('noteapp.theme') || 'system'; }catch(e){}
+  try{ look = JSON.parse(localStorage.getItem('noteapp.look') || '{}') || {}; }catch(e){}
   var dark = t === 'dark' || (t === 'system' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
-  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  var el = document.documentElement;
+  el.dataset.theme = dark ? 'dark' : 'light';
+  // 只写非默认值，属性越少越好排查
+  if(look.accent && look.accent !== 'orange') el.dataset.accent = look.accent;
+  if(look.table && look.table !== 'grid')    el.dataset.table  = look.table;
+  if(look.code  && look.code  !== 'soft')    el.dataset.code   = look.code;
+  if(look.size  && look.size  !== 'md')      el.dataset.md     = look.size;
+  if(look.lh    && look.lh    !== 'normal')  el.dataset.lh     = look.lh;
 })();
 </script>
 <style>
@@ -30,6 +39,7 @@
   --t2:#8a8a8e;
   --line:rgba(60,60,67,.13);
   --accent:#e8890c;
+  --accent-rgb:232,137,12;   /* 阴影、高亮这类要带透明度的场景，用 rgb 拼 */
   --soft:rgba(232,137,12,.12);
   --danger:#ff3b30;
   --shadow:0 1px 2px rgba(0,0,0,.05), 0 6px 18px rgba(0,0,0,.05);
@@ -45,11 +55,30 @@
   --t2:#8e8e93;
   --line:rgba(255,255,255,.11);
   --accent:#ffa726;
+  --accent-rgb:255,167,38;
   --soft:rgba(255,167,38,.16);
   --danger:#ff453a;
   --shadow:0 1px 2px rgba(0,0,0,.45);
   --bar:rgba(0,0,0,.78);
 }
+
+/* ---------- 主题色：只换 --accent / --soft / --accent-rgb ----------
+   所有组件都引用变量，所以换一个属性，按钮、标签、勾选框、阴影全跟着走。
+   深色下用更亮的一档，保证黑底上的对比度 */
+:root[data-accent="blue"]{--accent:#1c7ed6; --accent-rgb:28,126,214; --soft:rgba(28,126,214,.13)}
+:root[data-accent="green"]{--accent:#2f9e44; --accent-rgb:47,158,68; --soft:rgba(47,158,68,.13)}
+:root[data-accent="grape"]{--accent:#9c36b5; --accent-rgb:156,54,181; --soft:rgba(156,54,181,.13)}
+:root[data-accent="rose"]{--accent:#e64980; --accent-rgb:230,73,128; --soft:rgba(230,73,128,.13)}
+:root[data-accent="teal"]{--accent:#0ca678; --accent-rgb:12,166,120; --soft:rgba(12,166,120,.13)}
+:root[data-accent="indigo"]{--accent:#4c6ef5; --accent-rgb:76,110,245; --soft:rgba(76,110,245,.13)}
+:root[data-accent="slate"]{--accent:#5c636a; --accent-rgb:92,99,106; --soft:rgba(92,99,106,.12)}
+:root[data-theme="dark"][data-accent="blue"]{--accent:#4dabf7; --accent-rgb:77,171,247; --soft:rgba(77,171,247,.16)}
+:root[data-theme="dark"][data-accent="green"]{--accent:#51cf66; --accent-rgb:81,207,102; --soft:rgba(81,207,102,.16)}
+:root[data-theme="dark"][data-accent="grape"]{--accent:#cc5de8; --accent-rgb:204,93,232; --soft:rgba(204,93,232,.16)}
+:root[data-theme="dark"][data-accent="rose"]{--accent:#ff87ab; --accent-rgb:255,135,171; --soft:rgba(255,135,171,.16)}
+:root[data-theme="dark"][data-accent="teal"]{--accent:#38d9a9; --accent-rgb:56,217,169; --soft:rgba(56,217,169,.16)}
+:root[data-theme="dark"][data-accent="indigo"]{--accent:#91a7ff; --accent-rgb:145,167,255; --soft:rgba(145,167,255,.16)}
+:root[data-theme="dark"][data-accent="slate"]{--accent:#ced4da; --accent-rgb:206,212,218; --soft:rgba(206,212,218,.14)}
 
 /* ---------- 便签皮肤：只覆盖颜色变量，子树里的组件全部自动跟着变 ----------
    生效范围是「挂了 data-skin 的元素及其子元素」，所以编辑器根节点和列表卡片共用同一套 */
@@ -207,7 +236,7 @@ h1,h2,h3,h4,p{margin:0}
   width:54px; height:54px; border-radius:50%;
   background:var(--accent); color:#fff;
   display:grid; place-items:center;
-  box-shadow:0 8px 22px rgba(232,137,12,.42);
+  box-shadow:0 8px 22px rgba(var(--accent-rgb),.42);
   z-index:8;
   transition:transform .15s;
 }
@@ -241,7 +270,7 @@ h1,h2,h3,h4,p{margin:0}
   box-shadow:var(--shadow);
   white-space:nowrap;
 }
-.chip.on{background:var(--accent); color:#fff; box-shadow:0 4px 12px rgba(232,137,12,.3)}
+.chip.on{background:var(--accent); color:#fff; box-shadow:0 4px 12px rgba(var(--accent-rgb),.3)}
 .chip .num{opacity:.55; font-size:11px}
 
 .folder-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px}
@@ -393,7 +422,7 @@ h1,h2,h3,h4,p{margin:0}
   background:var(--accent); color:#fff;
   border-radius:12px; padding:11px 22px;
   font-size:15px; font-weight:600;
-  box-shadow:0 4px 12px rgba(232,137,12,.3);
+  box-shadow:0 4px 12px rgba(var(--accent-rgb),.3);
 }
 .btn-primary:active{opacity:.85}
 
@@ -454,10 +483,18 @@ h1,h2,h3,h4,p{margin:0}
 #edBody::placeholder{color:var(--t2); opacity:.55}
 
 /* Markdown 预览 */
+/* 字号 / 行距走变量，设置面板只切 <html data-md> / <html data-lh> 就能整体缩放。
+   标题用 em 而不是 px，缩放时层级比例才不会走样 */
+:root{--md-size:15.5px; --md-lh:1.75}
+:root[data-md="sm"]{--md-size:14.5px}
+:root[data-md="lg"]{--md-size:17px}
+:root[data-lh="tight"]{--md-lh:1.62}
+:root[data-lh="loose"]{--md-lh:1.92}
+
 #edPreview{
   flex:1; min-height:0; overflow-y:auto;
   padding:4px 20px 24px;
-  font-size:15.5px; line-height:1.75;
+  font-size:var(--md-size); line-height:var(--md-lh);
   display:none;
 }
 #editor.preview #edBody{display:none}
@@ -468,11 +505,11 @@ h1,h2,h3,h4,p{margin:0}
 /* 正文首行已经是同名大标题时，顶部标题框不再重复一遍 */
 #editor.preview.dup-title #edTitle{display:none}
 .md-body h1,.md-body h2,.md-body h3,.md-body h4{font-weight:700; line-height:1.4; margin:18px 0 8px}
-.md-body h1{font-size:24px; margin-top:6px}
-.md-body h2{font-size:20px}
-.md-body h3{font-size:17px}
-.md-body h4{font-size:16px}
-.md-body h5,.md-body h6{font-size:15px; font-weight:600; margin:14px 0 6px}
+.md-body h1{font-size:1.55em; margin-top:6px}
+.md-body h2{font-size:1.3em}
+.md-body h3{font-size:1.1em}
+.md-body h4{font-size:1.03em}
+.md-body h5,.md-body h6{font-size:.98em; font-weight:600; margin:14px 0 6px}
 .md-body p{margin:0 0 12px}
 .md-body ul,.md-body ol{margin:0 0 12px; padding-left:22px}
 .md-body li{margin:3px 0}
@@ -490,14 +527,30 @@ h1,h2,h3,h4,p{margin:0}
   background:var(--surface-2); border-radius:10px;
   padding:12px 14px; overflow-x:auto; margin:0 0 12px;
 }
-.md-body pre code{background:none; padding:0; font-size:13px; line-height:1.6}
+.md-body pre code{background:none; padding:0; font-size:.85em; line-height:1.6}
+/* 代码块样式：终端（深色）/ 描边（透明底）/ 色条（左侧强调线） */
+:root[data-code="dark"] .md-body pre{
+  background:#1b1b1f; color:#e9e9ee;
+  border:1px solid rgba(255,255,255,.09);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05);
+}
+:root[data-code="dark"] .md-body pre code{color:inherit}
+:root[data-code="line"] .md-body pre{
+  background:transparent;
+  border:1px solid var(--line);
+}
+:root[data-code="bar"] .md-body pre{
+  background:var(--surface-2);
+  border-left:3px solid var(--accent);
+  border-radius:4px 10px 10px 4px;
+}
 .md-body hr{border:0; border-top:1px solid var(--line); margin:18px 0}
 .md-body a{color:var(--accent); text-decoration:none}
 .md-body strong{font-weight:700}
 .md-body .md-empty{color:var(--t2); font-size:14px}
 /* 表格：手机上列多时整块横向滚动，不把正文撑宽 */
 .md-body .md-table{overflow-x:auto; -webkit-overflow-scrolling:touch; margin:0 0 12px}
-.md-body table{border-collapse:collapse; width:100%; font-size:13.5px; line-height:1.55}
+.md-body table{border-collapse:collapse; width:100%; font-size:.87em; line-height:1.55}
 .md-body th,.md-body td{
   border:1px solid var(--line); padding:6px 9px;
   text-align:left; vertical-align:top; word-break:break-word;
@@ -505,6 +558,22 @@ h1,h2,h3,h4,p{margin:0}
   min-width:7.2em;
 }
 .md-body th{background:var(--surface-2); font-weight:600; white-space:nowrap}
+/* 表格样式：斑马（隔行浅色）/ 横线（只留横线）/ 卡片（外框圆角 + 强调表头） */
+:root[data-table="zebra"] .md-body th,
+:root[data-table="zebra"] .md-body td{border:0; border-bottom:1px solid var(--line)}
+:root[data-table="zebra"] .md-body tbody tr:nth-child(2n) td{background:rgba(var(--accent-rgb),.07)}
+:root[data-table="line"] .md-body th,
+:root[data-table="line"] .md-body td{border:0; border-bottom:1px solid var(--line)}
+:root[data-table="line"] .md-body th{
+  background:transparent; border-bottom:1.5px solid var(--accent);
+}
+:root[data-table="card"] .md-body .md-table{
+  border:1px solid var(--line); border-radius:12px;
+}
+:root[data-table="card"] .md-body th,
+:root[data-table="card"] .md-body td{border:0; border-bottom:1px solid var(--line)}
+:root[data-table="card"] .md-body tr:last-child td{border-bottom:0}
+:root[data-table="card"] .md-body th{background:var(--soft); color:var(--accent)}
 .md-body .ta-c{text-align:center}
 .md-body .ta-r{text-align:right}
 .md-body .ta-l{text-align:left}
@@ -559,7 +628,7 @@ h1,h2,h3,h4,p{margin:0}
 #editor.finding #edBody,
 #editor.finding #edPreview{display:none}
 #edFindView mark{
-  background:rgba(232,137,12,.25); color:inherit;
+  background:rgba(var(--accent-rgb),.25); color:inherit;
   border-radius:3px; padding:1px 0;
 }
 #edFindView mark.cur{background:var(--accent); color:var(--surface)}
@@ -567,11 +636,10 @@ h1,h2,h3,h4,p{margin:0}
 
 /* 列表里搜索命中的高亮 */
 mark.hl{
-  background:rgba(232,137,12,.26); color:inherit;
+  background:rgba(var(--accent-rgb),.26); color:inherit;
   border-radius:3px; padding:0 1px; font-weight:inherit;
 }
-:root[data-theme="dark"] #edFindView mark{background:rgba(255,167,38,.24)}
-:root[data-theme="dark"] mark.hl{background:rgba(255,167,38,.26)}
+
 
 .ed-foot{
   flex:none; display:flex; justify-content:space-between; align-items:center;
@@ -662,6 +730,47 @@ mark.hl{
 .skin-name{font-size:12px; color:var(--text)}
 .skin-ok{position:absolute; top:7px; right:7px; display:none; color:var(--accent)}
 .skin-cell.on .skin-ok{display:flex}
+
+/* 个性化面板：预览样片 + 分段按钮 + 色点行 */
+.look-pv{
+  margin:2px 12px 4px; padding:10px 12px 2px;
+  background:var(--surface-2); border-radius:12px;
+  font-size:13px; line-height:1.62;
+  max-height:190px; overflow:hidden;
+}
+.look-pv .md-body{padding:0}
+.look-pv .md-body p{margin:0 0 8px}
+.look-pv .md-body th,.look-pv .md-body td{min-width:0; padding:4px 7px}
+.look-pv .md-body pre{margin:0 0 8px; padding:8px 10px}
+.look-pv .md-body pre code{font-size:.82em}
+.look-tip{
+  padding:0 14px 2px; font-size:12px; line-height:1.5; color:var(--t2);
+}
+.seg{display:flex; gap:6px; padding:0 12px 2px}
+.seg button{
+  flex:1; min-width:0;
+  padding:9px 4px; border-radius:10px;
+  background:var(--surface-2); color:var(--text);
+  font-size:13px; text-align:center;
+  border:1.5px solid transparent;
+  transition:border-color .15s, background .15s, color .15s;
+}
+.seg button.on{
+  border-color:var(--accent); background:var(--soft);
+  color:var(--accent); font-weight:600;
+}
+.dot-row{display:flex; gap:9px; padding:0 12px 4px}
+.dot-btn{
+  width:32px; height:32px; border-radius:50%; flex:none;
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.08);
+  transition:box-shadow .15s, transform .15s;
+}
+.dot-btn.on{
+  box-shadow:0 0 0 2px var(--surface), 0 0 0 4px var(--accent);
+}
+.dot-name{
+  padding:0 14px 2px; font-size:12px; color:var(--t2);
+}
 .pd-wrap{padding:6px 14px 12px}
 .textfield{
   width:100%; border:0; outline:none;
@@ -821,7 +930,7 @@ function icon(name, size=22, sw=1.8){
 const STORE_KEY = 'noteapp.v1';
 
 /* 版本号：改这里，build-apk.sh 会拿它和 build.gradle 的 versionName 对账，不一致就拒绝打包 */
-const APP_VERSION = '1.5.0';
+const APP_VERSION = '1.6.0';
 
 /* 便签皮肤：目前只有纯色。颜色定义在 CSS 的 [data-skin="…"] 里，
    sw 只用来画选择面板上的色点 */
@@ -833,6 +942,65 @@ const SKINS = [
   { id:'sky',     name:'天青', sw:'#e6eef8' },
   { id:'sand',    name:'沙褐', sw:'#efe8dd' }
 ];
+
+/* ---------- 个性化设置 ----------
+   主题色、新建便签默认皮肤、Markdown 样式（表格 / 代码块 / 字号 / 行距）。
+   全部落到 <html> 的 data-* 属性上，由 CSS 属性选择器接管 —— 跟主题、皮肤
+   的驱动方式保持一致：改一个属性，所有引用变量的组件自动跟着变。 */
+const LOOK_KEY = 'noteapp.look';
+const LOOK_DEF = { accent:'orange', skin:'default', table:'grid', code:'soft', size:'md', lh:'normal' };
+let look = Object.assign({}, LOOK_DEF);
+try{
+  const savedLook = JSON.parse(localStorage.getItem(LOOK_KEY) || '{}');
+  if(savedLook && typeof savedLook === 'object'){
+    Object.keys(LOOK_DEF).forEach(function(k){ if(savedLook[k]) look[k] = savedLook[k]; });
+  }
+}catch(e){}
+
+/* 主题色：只决定 --accent，浅色/深色两档色值在 CSS 里各写一份 */
+const ACCENTS = [
+  { id:'orange', name:'琥珀', sw:'#e8890c' },
+  { id:'blue',   name:'海蓝', sw:'#1c7ed6' },
+  { id:'green',  name:'松绿', sw:'#2f9e44' },
+  { id:'grape',  name:'葡萄', sw:'#9c36b5' },
+  { id:'rose',   name:'玫瑰', sw:'#e64980' },
+  { id:'teal',   name:'青碧', sw:'#0ca678' },
+  { id:'indigo', name:'靛青', sw:'#4c6ef5' },
+  { id:'slate',  name:'石墨', sw:'#5c636a' }
+];
+const LOOK_TABLES = [
+  { id:'grid',  name:'网格' },
+  { id:'zebra', name:'斑马' },
+  { id:'line',  name:'横线' },
+  { id:'card',  name:'卡片' }
+];
+const LOOK_CODES = [
+  { id:'soft', name:'柔和' },
+  { id:'dark', name:'终端' },
+  { id:'line', name:'描边' },
+  { id:'bar',  name:'色条' }
+];
+const LOOK_SIZES = [{ id:'sm', name:'小' }, { id:'md', name:'标准' }, { id:'lg', name:'大' }];
+const LOOK_LHS   = [{ id:'tight', name:'紧凑' }, { id:'normal', name:'标准' }, { id:'loose', name:'宽松' }];
+
+function applyLook(){
+  const el = document.documentElement;
+  // 等于默认值就不写属性，CSS 里「没有属性」即默认样式
+  const put = function(attr, val, def){
+    if(!val || val === def) el.removeAttribute(attr);
+    else el.setAttribute(attr, val);
+  };
+  put('data-accent', look.accent, 'orange');
+  put('data-table',  look.table,  'grid');
+  put('data-code',   look.code,   'soft');
+  put('data-md',     look.size,   'md');
+  put('data-lh',     look.lh,     'normal');
+}
+function setLook(key, val){
+  look[key] = val;
+  try{ localStorage.setItem(LOOK_KEY, JSON.stringify(look)); }catch(e){}
+  applyLook();
+}
 
 const COLORS = [
   {c:'#e8890c', rgb:'232,137,12'},
@@ -1842,7 +2010,9 @@ function closeEditor(){
 function newNote(){
   const now = Date.now();
   const minOrder = db.notes.length ? Math.min.apply(null, db.notes.map(n => n.order)) : 0;
+  // 新便签直接套上「默认皮肤」，省得每次手动选
   const n = { id:uid(), folderId:ui.folderId, title:'', content:'', tags:[],
+              skin:(look.skin && look.skin !== 'default') ? look.skin : null,
               pinned:false, order:minOrder - 1, createdAt:now, updatedAt:now };
   db.notes.push(n);
   save();
@@ -2909,31 +3079,90 @@ function openExportMenu(){
   menuItems('导出与备份', items);
 }
 
-/* 外观：三选一，选完立刻生效并记住 */
-function openThemePicker(){
-  const cur = ui.theme || 'system';
-  const opts = [
-    { id:'system', icon:'auto', name:'跟随系统', desc:'随手机设置切换' },
-    { id:'light',  icon:'sun',  name:'浅色',     desc:'白底深色字' },
-    { id:'dark',   icon:'moon', name:'深色',     desc:'黑底浅色字' }
-  ];
-  let h = '<h4>外观</h4>';
+/* ---------- 个性化面板 ----------
+   面板顶部放一块实时小样：调表格 / 代码块 / 字号时眼睛立刻能看到差别，
+   不用关掉面板再回正文里核对。 */
+const LOOK_PV_HTML =
+  '<p>正文、<code>inline()</code> 与 <strong>加粗</strong> 的样子</p>' +
+  '<div class="md-table"><table><thead><tr><th>元素</th><th>效果</th></tr></thead>' +
+  '<tbody><tr><td>表格</td><td>实时预览</td></tr>' +
+  '<tr><td>代码</td><td>见下方</td></tr></tbody></table></div>' +
+  '<pre><code>const a = 1;</code></pre>';
+
+function lookSegHtml(title, key, opts, cur){
+  let h = '<h4>' + title + '</h4><div class="seg" data-seg="' + key + '">';
   opts.forEach(function(o){
-    const on = cur === o.id;
-    h += '<button class="sheet-item' + (on ? ' on' : '') + '" data-pick-theme="' + o.id + '">' +
-      icon(o.icon, 19) + '<span>' + o.name + '</span>' +
-      '<span class="pick-desc">' + o.desc + '</span>' +
-      (on ? '<span class="pick-ok">' + icon('check', 16, 2.4) + '</span>' : '') +
-      '</button>';
+    h += '<button data-val="' + o.id + '"' + (cur === o.id ? ' class="on"' : '') + '>' + o.name + '</button>';
   });
+  return h + '</div>';
+}
+function lookDotsHtml(title, key, opts, cur){
+  let name = '';
+  let h = '<h4>' + title + '</h4><div class="dot-row" data-dot="' + key + '">';
+  opts.forEach(function(o){
+    if(cur === o.id) name = o.name;
+    h += '<button class="dot-btn' + (cur === o.id ? ' on' : '') + '" data-val="' + o.id +
+         '" aria-label="' + o.name + '" style="background:' + o.sw + '"></button>';
+  });
+  h += '</div><div class="dot-name" data-dotname="' + key + '">' + name + '</div>';
+  return h;
+}
+
+function openLookSheet(){
+  let h = '<h4>个性化</h4>' +
+    '<div class="look-pv md-body">' + LOOK_PV_HTML + '</div>' +
+    '<div class="look-tip">主题色影响按钮、标签与高亮；下面「表格 / 代码块 / 字号 / 行距」只影响 Markdown 预览。</div>';
+
+  h += lookSegHtml('外观', 'theme', [
+    { id:'system', name:'跟随系统' }, { id:'light', name:'浅色' }, { id:'dark', name:'深色' }
+  ], ui.theme || 'system');
+  h += lookDotsHtml('主题色', 'accent', ACCENTS, look.accent);
+  h += lookDotsHtml('新建便签的默认皮肤', 'skin', SKINS, look.skin);
+  h += '<div class="look-tip">只对之后新建的便签生效；已有便签在编辑器 ⋯ → 背景皮肤里改。</div>';
+  h += lookSegHtml('表格', 'table', LOOK_TABLES, look.table);
+  h += lookSegHtml('代码块', 'code', LOOK_CODES, look.code);
+  h += lookSegHtml('正文字号', 'size', LOOK_SIZES, look.size);
+  h += lookSegHtml('行距', 'lh', LOOK_LHS, look.lh);
+
+  h += '<div class="pd-actions" style="padding-top:8px">' +
+       '<button class="pd-btn" id="lookReset">恢复默认</button>' +
+       '<button class="pd-btn primary" id="lookDone">完成</button></div>';
   openSheet(h);
-  $('#sheetRoot').querySelectorAll('[data-pick-theme]').forEach(function(b){
-    b.onclick = function(){
-      setTheme(b.dataset.pickTheme);
-      closeSheet();
-      toast('外观已切换');
-    };
+
+  const root = $('#sheetRoot');
+  root.querySelectorAll('[data-seg]').forEach(function(g){
+    const key = g.dataset.seg;
+    g.querySelectorAll('button').forEach(function(b){
+      b.onclick = function(){
+        if(key === 'theme') setTheme(b.dataset.val);
+        else setLook(key, b.dataset.val);
+        g.querySelectorAll('button').forEach(function(x){ x.classList.toggle('on', x === b); });
+      };
+    });
   });
+  root.querySelectorAll('[data-dot]').forEach(function(g){
+    const key = g.dataset.dot;
+    g.querySelectorAll('button').forEach(function(b){
+      b.onclick = function(){
+        setLook(key, b.dataset.val);
+        g.querySelectorAll('button').forEach(function(x){ x.classList.toggle('on', x === b); });
+        const nm = root.querySelector('[data-dotname="' + key + '"]');
+        if(nm) nm.textContent = b.getAttribute('aria-label');
+        // 默认皮肤只影响以后新建的，给个明确反馈，免得以为没生效
+        if(key === 'skin') toast('之后新建的便签用「' + b.getAttribute('aria-label') + '」皮肤');
+      };
+    });
+  });
+
+  $('#lookDone').onclick = function(){ closeSheet(); };
+  $('#lookReset').onclick = function(){
+    look = Object.assign({}, LOOK_DEF);
+    try{ localStorage.setItem(LOOK_KEY, JSON.stringify(look)); }catch(e){}
+    applyLook();
+    setTheme('system');
+    openLookSheet();          // 重建面板，让选中态跟着回到默认
+    toast('已恢复默认设置');
+  };
 }
 
 /* 便签皮肤：点一下就地生效，面板不关，方便来回试 */
@@ -2971,7 +3200,7 @@ function openMainMenu(){
   menuItems('更多', [
     { icon:'folder', label:'新建文件夹', onClick:function(){ newFolder(ui.folderId); } },
     { icon:'tag',    label:'按标签浏览', onClick:openTagPicker },
-    { icon:'sun',    label:'外观（浅色 / 深色）', onClick:openThemePicker },
+    { icon:'palette',label:'个性化设置（皮肤 / 样式）', onClick:openLookSheet },
     { icon:'down',   label:'导出与备份', onClick:openExportMenu },
     { icon:'info',   label:'关于数据保存', onClick:aboutSheet },
     { icon:'info',   label:'关于这个 App', onClick:aboutApp }
@@ -3012,7 +3241,7 @@ function aboutApp(){
   openSheet('<h4>关于这个 App</h4><div class="pd-msg">' +
     '版本 <b>' + APP_VERSION + '</b><br>' +
     '单文件便签应用，数据存在本地。<br><br>' +
-    '手势与快捷键：<br>· 长按便签卡片 → 拖动排序<br>· 点卡片右侧 ⋯ → 置顶 / 标签 / 移动 / 删除<br>· 编辑器右上角 ⋯ → 背景皮肤<br>· 编辑器右上角眼睛 → Markdown 预览<br>· 顶部标签条 → 按标签筛选<br>· 主菜单 ⋯ → 外观（浅色 / 深色）</div>' +
+    '手势与快捷键：<br>· 长按便签卡片 → 拖动排序<br>· 点卡片右侧 ⋯ → 置顶 / 标签 / 移动 / 删除<br>· 编辑器右上角 ⋯ → 背景皮肤<br>· 编辑器右上角眼睛 → Markdown 预览<br>· 顶部标签条 → 按标签筛选<br>· 主菜单 ⋯ → 个性化设置（主题色 / 表格 / 代码块 / 字号）</div>' +
     '<div class="pd-actions"><button class="pd-btn primary" id="abOk2">知道了</button></div>');
   $('#abOk2').onclick = function(){ closeSheet(); };
 }
@@ -3245,6 +3474,7 @@ $('#edMore').onclick = function(){
       } },
     { icon:'tag',   label:'添加标签', onClick:addTags },
     { icon:'palette', label:'背景皮肤', onClick:function(){ openSkinPicker(n.id); } },
+    { icon:'sun', label:'个性化设置', onClick:openLookSheet },
     { icon:'clock', label:'历史版本', onClick:openHistory },
     { icon:'search', label:'在本便签内查找', onClick:function(){ openFind(''); } },
     { icon:'down',  label:'导出这条便签', onClick:function(){ commitEdits(); openNoteExportMenu(n.id); } },
@@ -3274,6 +3504,7 @@ document.addEventListener('visibilitychange', function(){
    10. 启动
    ============================================================ */
 applyTheme();
+applyLook();
 loadDB();
 render();
 
