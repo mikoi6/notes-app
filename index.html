@@ -276,6 +276,51 @@ h1,h2,h3,h4,p{margin:0}
 .tr-name{flex:1; min-width:0; font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .tr-count{font-size:12px; color:var(--t2); flex:none}
 
+/* 当前文件夹的目录大纲（文件夹 + 笔记全展开，可点击跳转） */
+.outline-head{
+  display:flex; align-items:center; gap:8px;
+  width:100%; margin-top:10px;
+  padding:11px 13px;
+  background:var(--surface);
+  border-radius:14px;
+  box-shadow:var(--shadow);
+  color:var(--text);
+  font-size:13.5px; font-weight:600;
+  text-align:left;
+  -webkit-user-select:none; user-select:none;
+}
+.outline-head:active{background:var(--surface-2)}
+.outline-head .oh-sub{
+  margin-left:auto; font-weight:400; font-size:11.5px; color:var(--t2);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.outline-head .oh-chev{flex:none; display:flex; color:var(--t2); transition:transform .18s}
+.outline-head.on .oh-chev{transform:rotate(90deg)}
+.outline{
+  margin-top:8px; padding:5px;
+  background:var(--surface);
+  border-radius:14px;
+  box-shadow:var(--shadow);
+  overflow:hidden;
+}
+.ol-row{
+  display:flex; align-items:center; gap:7px;
+  padding:8px 10px;
+  border-radius:9px;
+  font-size:13.5px;
+  cursor:pointer;
+}
+.ol-row:active{background:var(--surface-2)}
+.ol-row.folder{font-weight:600}
+.ol-row.empty-row{color:var(--t2); cursor:default; font-weight:400; padding-left:12px}
+.ol-ico{display:flex; flex:none; width:17px; justify-content:center}
+.ol-mark{display:flex; flex:none; width:11px; justify-content:center; align-items:center}
+.ol-dot{width:3px; height:3px; border-radius:50%; background:var(--t2); opacity:.6}
+.ol-pin{display:flex; color:var(--accent); transform:rotate(35deg)}
+.ol-name{flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.ol-name.untitled{color:var(--t2); font-weight:400}
+.ol-num{font-size:11px; color:var(--t2); flex:none}
+
 .empty{padding:64px 24px; text-align:center; color:var(--t2)}
 .empty svg{opacity:.3; margin-bottom:14px}
 .empty p{font-size:14px; margin-bottom:18px}
@@ -597,7 +642,8 @@ const PATH = {
   info:'<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.5M12 7.8h.01"/>',
   text:'<path d="M5 5h14M5 9.5h9M5 14h14M5 18.5h9"/>',
   search:'<circle cx="11" cy="11" r="7"/><path d="M20.5 20.5L16.5 16.5"/>',
-  code:'<path d="M9 7l-5 5 5 5M15 7l5 5-5 5"/>'
+  code:'<path d="M9 7l-5 5 5 5M15 7l5 5-5 5"/>',
+  chev:'<path d="M9 5.5l6.5 6.5L9 18.5"/>'
 };
 function icon(name, size=22, sw=1.8){
   return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="'+sw+'" stroke-linecap="round" stroke-linejoin="round">'+PATH[name]+'</svg>';
@@ -625,7 +671,7 @@ function tint(col){
 
 let db = { folders: [], notes: [] };
 let ui = { view:'notes', folderId:null, searching:false, query:'', editingId:null,
-           tagFilter:null, preview:false, suppressClick:false };
+           tagFilter:null, preview:false, suppressClick:false, outlineOn:false };
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
 const $  = s => document.querySelector(s);
@@ -781,6 +827,7 @@ function viewNotes(){
   const fs = subFolders(fid);
   const ns = notesIn(fid);
   let h = tagBar();
+  h += outlinePanel(fid);
 
   if(fs.length){
     h += '<div class="sec">文件夹<em>' + fs.length + '</em></div>';
@@ -796,6 +843,55 @@ function viewNotes(){
          '<button class="btn-primary" data-new-note>写一条便签</button></div>';
   }
   return h;
+}
+
+/* 目录大纲：把当前文件夹下所有层级的文件夹和笔记平铺展开，点哪跳哪 */
+function outlinePanel(fid){
+  const folderTotal = fid ? descendantIds(fid).length - 1 : db.folders.length;
+  const noteTotal = countNotesDeep(fid);
+  // 空文件夹不摆一个点了没反应的入口
+  if(!folderTotal && !noteTotal) return '';
+  const on = !!ui.outlineOn;
+
+  let h = '<button class="outline-head' + (on ? ' on' : '') + '" data-toggle-outline>' +
+      icon('text',17,1.9) +
+      '<span>目录</span>' +
+      '<span class="oh-sub">' + folderTotal + ' 个文件夹 · ' + noteTotal + ' 条便签</span>' +
+      '<span class="oh-chev">' + icon('chev',14,2) + '</span>' +
+    '</button>';
+
+  if(!on) return h;
+  return h + '<div class="outline">' + folderContent(fid, 0) + '</div>';
+}
+
+/* 先列这一层的笔记，再展开子文件夹 —— 每条笔记都紧贴它的父文件夹，
+   否则"文件夹A的笔记"会漂到"文件夹A的子文件夹"后面，看着像孙子 */
+function folderContent(fid, depth){
+  // 层级太深时缩进封顶，避免长名字被挤到只剩几个字
+  const pad = 10 + Math.min(depth, 8) * 16;
+  let h = noteRows(fid, pad);
+  subFolders(fid).forEach(function(f){
+    const c = COLORS[(f.color || 0) % COLORS.length];
+    const n = countNotesDeep(f.id);
+    h += '<div class="ol-row folder" data-open-folder="' + f.id + '" style="padding-left:' + pad + 'px">' +
+        '<span class="ol-ico" style="color:' + c.c + '">' + icon('folder',16,1.9) + '</span>' +
+        '<span class="ol-name">' + esc(f.name) + '</span>' +
+        '<span class="ol-num">' + (n ? n + ' 条' : '空') + '</span>' +
+      '</div>' +
+      folderContent(f.id, depth + 1);
+  });
+  return h;
+}
+
+function noteRows(fid, pad){
+  return notesIn(fid).map(function(n){
+    return '<div class="ol-row" data-open-note="' + n.id + '" style="padding-left:' + (pad + 24) + 'px">' +
+        '<span class="ol-mark">' +
+          (n.pinned ? '<span class="ol-pin">' + icon('pin',11,2) + '</span>' : '<span class="ol-dot"></span>') +
+        '</span>' +
+        '<span class="ol-name' + (n.title ? '' : ' untitled') + '">' + esc(n.title || '无标题') + '</span>' +
+      '</div>';
+  }).join('');
 }
 
 function viewTag(){
@@ -2240,12 +2336,19 @@ $('#view').addEventListener('click', function(e){
     return;
   }
 
+  if(e.target.closest('[data-toggle-outline]')){
+    ui.outlineOn = !ui.outlineOn;
+    render();
+    return;
+  }
+
   const oFolder = e.target.closest('[data-open-folder]');
   if(oFolder){
     ui.folderId = oFolder.dataset.openFolder;
     ui.view = 'notes';
     ui.tagFilter = null;
     render();
+    $('#view').scrollTop = 0;
     return;
   }
   const chip = e.target.closest('[data-tag]');
@@ -2442,6 +2545,7 @@ window.androidBack = function(){
     render(); return true;
   }
   if(ui.tagFilter){ ui.tagFilter = null; render(); return true; }
+  if(ui.outlineOn){ ui.outlineOn = false; render(); return true; }
   if(ui.folderId){
     const f = getFolder(ui.folderId);
     ui.folderId = f ? (f.parentId || null) : null;
