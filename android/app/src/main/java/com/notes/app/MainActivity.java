@@ -2,6 +2,7 @@ package com.notes.app;
 
 import android.annotation.SuppressLint;
 import android.app.Activity;
+import android.content.ClipData;
 import android.content.ContentValues;
 import android.content.Intent;
 import android.graphics.Color;
@@ -81,11 +82,16 @@ public class MainActivity extends Activity {
             public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> cb,
                                              FileChooserParams params) {
                 fileCallback = cb;
+                // 导入数据包时网页用的是 <input multiple>，这里要透传，
+                // 否则用户选了一个文件就被踢回页面，得反复点好几次
+                boolean multi = params.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE;
                 Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
                 intent.addCategory(Intent.CATEGORY_OPENABLE);
                 intent.setType("*/*");
+                if (multi) intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
                 try {
-                    startActivityForResult(Intent.createChooser(intent, "选择备份文件"), REQ_FILE);
+                    startActivityForResult(Intent.createChooser(intent,
+                            multi ? "选择要导入的文件" : "选择文件"), REQ_FILE);
                     return true;
                 } catch (Exception e) {
                     fileCallback = null;
@@ -156,8 +162,16 @@ public class MainActivity extends Activity {
             if (fileCallback != null) {
                 Uri[] result = null;
                 if (resultCode == RESULT_OK && data != null) {
-                    Uri uri = data.getData();
-                    if (uri != null) result = new Uri[]{uri};
+                    // 多选时 URI 在 ClipData 里，单选才走 getData()
+                    ClipData clip = data.getClipData();
+                    if (clip != null && clip.getItemCount() > 0) {
+                        result = new Uri[clip.getItemCount()];
+                        for (int i = 0; i < clip.getItemCount(); i++) {
+                            result[i] = clip.getItemAt(i).getUri();
+                        }
+                    } else if (data.getData() != null) {
+                        result = new Uri[]{data.getData()};
+                    }
                 }
                 fileCallback.onReceiveValue(result);
                 fileCallback = null;
