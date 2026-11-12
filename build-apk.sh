@@ -21,6 +21,22 @@ die() {
   exit 1
 }
 
+# ---------- 版本号对账 ----------
+# 页面里显示的版本、APK 的 versionName、git tag 必须是同一个数，否则装了新版还显示旧号
+APP_VER=$(grep -o "const APP_VERSION = '[^']*'" "$ROOT/index.html" | head -1 | sed "s/.*'\(.*\)'/\1/")
+GRADLE_VER=$(grep -o 'versionName "[^"]*"' "$ROOT/android/app/build.gradle" | head -1 | sed 's/.*"\(.*\)"/\1/')
+
+[ -n "$APP_VER" ] || die "没能从 index.html 里读到 APP_VERSION"
+if [ "$APP_VER" != "$GRADLE_VER" ]; then
+  die "版本号不一致：index.html=$APP_VER，build.gradle=$GRADLE_VER"
+fi
+
+# 当前提交上如果已经有 tag，tag 也得对上（构建时还没打 tag 的话就跳过）
+HEAD_TAG=$(cd "$ROOT" && git describe --tags --exact-match 2>/dev/null || true)
+if [ -n "$HEAD_TAG" ] && [ "v$APP_VER" != "$HEAD_TAG" ]; then
+  echo "警告：当前提交的 tag 是 $HEAD_TAG，但版本号是 $APP_VER" >&2
+fi
+
 # ---------- 找 JDK ----------
 # 只认带 jlink 的完整 JDK，JBR / JRE 这类精简运行时会卡在 JdkImageTransform
 has_jlink() { [ -x "$1/bin/jlink" ] || [ -x "$1/bin/jlink.exe" ]; }
@@ -110,6 +126,7 @@ export JAVA_HOME="$JDK"
 export ANDROID_HOME="$SDK"
 export PATH="$JAVA_HOME/bin:$PATH"
 
+echo "版本    : $APP_VER"
 echo "JDK     : $JAVA_HOME"
 echo "SDK     : $ANDROID_HOME"
 echo "Gradle  : $GRADLE"

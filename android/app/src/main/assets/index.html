@@ -3,12 +3,21 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
-<meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)" />
-<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+<meta name="theme-color" content="#f2f2f7" id="metaTheme" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-title" content="便签" />
 <meta name="format-detection" content="telephone=no" />
 <title>便签</title>
+<script>
+/* 首屏就把主题定下来，避免先白后黑闪一下。
+   这段必须放在样式之前，且不能依赖下面任何函数。 */
+(function(){
+  var t = 'system';
+  try{ t = localStorage.getItem('noteapp.theme') || 'system'; }catch(e){}
+  var dark = t === 'dark' || (t === 'system' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+})();
+</script>
 <style>
 /* ============================================================
    1. 主题变量：只改这里就能换配色
@@ -26,20 +35,76 @@
   --shadow:0 1px 2px rgba(0,0,0,.05), 0 6px 18px rgba(0,0,0,.05);
   --bar:rgba(242,242,247,.86);
 }
-@media (prefers-color-scheme: dark){
-  :root{
-    --bg:#000000;
-    --surface:#1c1c1e;
-    --surface-2:#2c2c2e;
-    --text:#f2f2f7;
-    --t2:#8e8e93;
-    --line:rgba(255,255,255,.11);
-    --accent:#ffa726;
-    --soft:rgba(255,167,38,.16);
-    --danger:#ff453a;
-    --shadow:0 1px 2px rgba(0,0,0,.45);
-    --bar:rgba(0,0,0,.78);
-  }
+/* 深色：由 JS 写在 <html data-theme="dark"> 上，不再只用媒体查询 ——
+   这样「手动选深色」和「跟随系统」走同一套变量，不会两处维护 */
+:root[data-theme="dark"]{
+  --bg:#000000;
+  --surface:#1c1c1e;
+  --surface-2:#2c2c2e;
+  --text:#f2f2f7;
+  --t2:#8e8e93;
+  --line:rgba(255,255,255,.11);
+  --accent:#ffa726;
+  --soft:rgba(255,167,38,.16);
+  --danger:#ff453a;
+  --shadow:0 1px 2px rgba(0,0,0,.45);
+  --bar:rgba(0,0,0,.78);
+}
+
+/* ---------- 便签皮肤：只覆盖颜色变量，子树里的组件全部自动跟着变 ----------
+   生效范围是「挂了 data-skin 的元素及其子元素」，所以编辑器根节点和列表卡片共用同一套 */
+[data-skin="cream"]{
+  --bg:#f7efdc; --surface:#fffaf0; --surface-2:#f0e5cd;
+  --text:#3a3327; --t2:#8a7c62; --line:rgba(90,75,50,.14);
+  --bar:rgba(247,239,220,.88); --soft:rgba(200,140,30,.14);
+}
+[data-skin="mint"]{
+  --bg:#e6f2ea; --surface:#f4fbf6; --surface-2:#dceee2;
+  --text:#22352b; --t2:#6d8377; --line:rgba(40,80,60,.14);
+  --bar:rgba(230,242,234,.88); --soft:rgba(40,140,90,.14);
+}
+[data-skin="rose"]{
+  --bg:#f9e9ee; --surface:#fff7f9; --surface-2:#f3dde5;
+  --text:#3d2830; --t2:#8d6c78; --line:rgba(120,60,80,.13);
+  --bar:rgba(249,233,238,.88); --soft:rgba(200,80,120,.12);
+}
+[data-skin="sky"]{
+  --bg:#e6eef8; --surface:#f5f9ff; --surface-2:#dbe7f5;
+  --text:#22303f; --t2:#6b7c90; --line:rgba(50,80,120,.13);
+  --bar:rgba(230,238,248,.88); --soft:rgba(50,120,200,.12);
+}
+[data-skin="sand"]{
+  --bg:#efe8dd; --surface:#faf6f0; --surface-2:#e6dccc;
+  --text:#382f26; --t2:#857864; --line:rgba(90,75,55,.14);
+  --bar:rgba(239,232,221,.88); --soft:rgba(160,120,70,.14);
+}
+/* 变量只影响显式用 var() 的属性。文字颜色是「继承」下来的，
+   所以挂皮肤的根节点必须自己重新取一次 --text，否则 input/卡片里的字还是主题色 */
+[data-skin]{color:var(--text)}
+:root[data-theme="dark"] [data-skin="cream"]{
+  --bg:#241f17; --surface:#2d261c; --surface-2:#382f22;
+  --text:#f0e6d2; --t2:#a99a80; --line:rgba(255,240,210,.12);
+  --bar:rgba(36,31,23,.88); --soft:rgba(255,180,70,.15);
+}
+:root[data-theme="dark"] [data-skin="mint"]{
+  --bg:#16241d; --surface:#1c2c23; --surface-2:#24382c;
+  --text:#dfeee4; --t2:#8ba295; --line:rgba(220,255,235,.11);
+  --bar:rgba(22,36,29,.88); --soft:rgba(90,220,160,.14);
+}
+:root[data-theme="dark"] [data-skin="rose"]{
+  --bg:#271a1f; --surface:#312128; --surface-2:#3d2932;
+  --text:#f4e2e8; --t2:#b1909c; --line:rgba(255,220,235,.11);
+  --bar:rgba(39,26,31,.88); --soft:rgba(255,140,180,.14);
+}
+:root[data-theme="dark"] [data-skin="sky"]{
+  --bg:#16202b; --surface:#1c2836; --surface-2:#243447;
+  --text:#dfe9f5; --t2:#8ba0b6; --line:rgba(210,235,255,.11);
+  --bar:rgba(22,32,43,.88); --soft:rgba(110,180,255,.14);
+}
+:root[data-theme="dark"] [data-skin="sand"]{
+  --bg:#221d18; --surface:#2b241d; --surface-2:#362d24;
+  --text:#ece2d4; --t2:#a2947f; --line:rgba(255,235,210,.11);
+  --bar:rgba(34,29,24,.88); --soft:rgba(220,180,120,.14);
 }
 
 /* ============================================================
@@ -473,10 +538,8 @@ mark.hl{
   background:rgba(232,137,12,.26); color:inherit;
   border-radius:3px; padding:0 1px; font-weight:inherit;
 }
-@media (prefers-color-scheme: dark){
-  #edFindView mark{background:rgba(255,167,38,.24)}
-  mark.hl{background:rgba(255,167,38,.26)}
-}
+:root[data-theme="dark"] #edFindView mark{background:rgba(255,167,38,.24)}
+:root[data-theme="dark"] mark.hl{background:rgba(255,167,38,.26)}
 
 .ed-foot{
   flex:none; display:flex; justify-content:space-between;
@@ -512,6 +575,32 @@ mark.hl{
 .sheet-item:active{background:var(--surface-2)}
 .sheet-item.danger{color:var(--danger)}
 .sheet-item:disabled{opacity:.32}
+.sheet-item.on{color:var(--accent)}
+.pick-desc{margin-left:auto; color:var(--t2); font-size:12px}
+.pick-ok{margin-left:8px; display:flex; color:var(--accent)}
+
+/* 皮肤选择：3 列色卡 */
+.skin-grid{
+  display:grid; grid-template-columns:repeat(3,1fr); gap:8px;
+  padding:2px 12px 6px;
+}
+.skin-cell{
+  position:relative;
+  display:flex; flex-direction:column; align-items:center; gap:7px;
+  padding:13px 6px 11px;
+  border-radius:14px;
+  border:1.5px solid transparent;
+  background:var(--surface-2);
+  transition:border-color .15s, background .15s;
+}
+.skin-cell.on{border-color:var(--accent); background:var(--soft)}
+.skin-dot{
+  width:34px; height:34px; border-radius:50%;
+  box-shadow:inset 0 0 0 1px var(--line), 0 1px 4px rgba(0,0,0,.12);
+}
+.skin-name{font-size:12px; color:var(--text)}
+.skin-ok{position:absolute; top:7px; right:7px; display:none; color:var(--accent)}
+.skin-cell.on .skin-ok{display:flex}
 .pd-wrap{padding:6px 14px 12px}
 .textfield{
   width:100%; border:0; outline:none;
@@ -643,7 +732,12 @@ const PATH = {
   text:'<path d="M5 5h14M5 9.5h9M5 14h14M5 18.5h9"/>',
   search:'<circle cx="11" cy="11" r="7"/><path d="M20.5 20.5L16.5 16.5"/>',
   code:'<path d="M9 7l-5 5 5 5M15 7l5 5-5 5"/>',
-  chev:'<path d="M9 5.5l6.5 6.5L9 18.5"/>'
+  chev:'<path d="M9 5.5l6.5 6.5L9 18.5"/>',
+  sun:'<circle cx="12" cy="12" r="4.4"/><path d="M12 2.6v2.2M12 19.2v2.2M4.3 4.3l1.6 1.6M18.1 18.1l1.6 1.6M2.6 12h2.2M19.2 12h2.2M4.3 19.7l1.6-1.6M18.1 5.9l1.6-1.6"/>',
+  moon:'<path d="M20.2 14.6A8.6 8.6 0 0 1 9.4 3.8a8.6 8.6 0 1 0 10.8 10.8z"/>',
+  auto:'<circle cx="12" cy="12" r="8.4"/><path d="M12 3.6a8.4 8.4 0 0 1 0 16.8z" fill="currentColor" stroke="none"/>',
+  check:'<path d="M4.8 12.6l4.8 4.8 9.6-10.4"/>',
+  palette:'<path d="M12 3.6c-4.7 0-8.4 3.7-8.4 8.4s3.7 8.4 8.4 8.4c1.3 0 2.2-.9 2.2-2 0-.5-.2-.9-.5-1.2-.3-.3-.4-.7-.4-1.1 0-1 .8-1.7 1.7-1.7h1.7c2.1 0 3.7-1.6 3.7-3.7 0-3.9-3.7-7.1-8.4-7.1z"/><circle cx="8.2" cy="10.6" r="1.15" fill="currentColor" stroke="none"/><circle cx="12" cy="7.9" r="1.15" fill="currentColor" stroke="none"/><circle cx="15.8" cy="10.2" r="1.15" fill="currentColor" stroke="none"/>'
 };
 function icon(name, size=22, sw=1.8){
   return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="'+sw+'" stroke-linecap="round" stroke-linejoin="round">'+PATH[name]+'</svg>';
@@ -656,6 +750,20 @@ function icon(name, size=22, sw=1.8){
    ============================================================ */
 const STORE_KEY = 'noteapp.v1';
 
+/* 版本号：改这里，build-apk.sh 会拿它和 build.gradle 的 versionName 对账，不一致就拒绝打包 */
+const APP_VERSION = '1.2.0';
+
+/* 便签皮肤：目前只有纯色。颜色定义在 CSS 的 [data-skin="…"] 里，
+   sw 只用来画选择面板上的色点 */
+const SKINS = [
+  { id:'default', name:'默认', sw:'linear-gradient(135deg,#ffffff 50%,#1c1c1e 50%)' },
+  { id:'cream',   name:'米黄', sw:'#f7efdc' },
+  { id:'mint',    name:'薄荷', sw:'#e6f2ea' },
+  { id:'rose',    name:'樱粉', sw:'#f9e9ee' },
+  { id:'sky',     name:'天青', sw:'#e6eef8' },
+  { id:'sand',    name:'沙褐', sw:'#efe8dd' }
+];
+
 const COLORS = [
   {c:'#e8890c', rgb:'232,137,12'},
   {c:'#2f9e44', rgb:'47,158,68'},
@@ -665,13 +773,37 @@ const COLORS = [
   {c:'#0ca678', rgb:'12,166,120'}
 ];
 function tint(col){
-  const a = matchMedia('(prefers-color-scheme: dark)').matches ? 0.26 : 0.13;
+  const a = isDark() ? 0.26 : 0.13;
   return 'rgba(' + col.rgb + ',' + a + ')';
 }
 
 let db = { folders: [], notes: [] };
+
+const THEME_KEY = 'noteapp.theme';
+let savedTheme = 'system';
+try{ savedTheme = localStorage.getItem(THEME_KEY) || 'system'; }catch(e){}
+
 let ui = { view:'notes', folderId:null, searching:false, query:'', editingId:null,
-           tagFilter:null, preview:false, suppressClick:false, outlineOn:false };
+           tagFilter:null, preview:false, suppressClick:false, outlineOn:false,
+           theme:savedTheme };
+
+/* 主题：light / dark / system 三种，system 时实时跟随系统 */
+function isDark(){
+  return document.documentElement.dataset.theme === 'dark';
+}
+function applyTheme(){
+  const t = ui.theme || 'system';
+  const dark = t === 'dark' || (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  const m = document.getElementById('metaTheme');
+  if(m) m.setAttribute('content', dark ? '#000000' : '#f2f2f7');
+}
+function setTheme(t){
+  ui.theme = t;
+  try{ localStorage.setItem(THEME_KEY, t); }catch(e){}
+  applyTheme();
+  render();
+}
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
 const $  = s => document.querySelector(s);
@@ -697,6 +829,8 @@ function normalize(){
     if(!Array.isArray(n.tags)) n.tags = [];
     if(typeof n.pinned !== 'boolean') n.pinned = false;
     if(typeof n.order !== 'number') n.order = i;
+    // 皮肤是后加的字段，老数据没有；已删除的皮肤 id 也在这里清掉
+    if(n.skin && !SKINS.some(s => s.id === n.skin)) n.skin = null;
   });
 }
 function save(){
@@ -979,7 +1113,9 @@ function noteCard(n, showPath, q){
       (rest > 0 ? '<span class="mini-tag more-tag">+' + rest + '</span>' : '') +
       '</div>';
   }
-  return '<div class="note-card' + (n.pinned ? ' pinned' : '') + '" data-open-note="' + n.id + '" data-drag-note="' + n.id + '">' +
+  return '<div class="note-card' + (n.pinned ? ' pinned' : '') + '"' +
+      (n.skin ? ' data-skin="' + n.skin + '"' : '') +
+      ' data-open-note="' + n.id + '" data-drag-note="' + n.id + '">' +
       '<div class="nc-main">' +
         '<h3>' + (n.pinned ? '<i class="pin-ico">' + icon('pin',13,2) + '</i>' : '') +
           '<span>' + hlText(title, q) + '</span></h3>' +
@@ -1139,11 +1275,20 @@ function updateCount(){
   $('#edCount').textContent = len + ' 字';
 }
 
+/* 皮肤只靠 data-skin 覆盖 CSS 变量，所以这里改属性就够了，
+   编辑器里的标题、正文、顶栏、标签全都会跟着换色 */
+function applyEditorSkin(n){
+  const ed = $('#editor');
+  if(n && n.skin) ed.setAttribute('data-skin', n.skin);
+  else ed.removeAttribute('data-skin');
+}
+
 function openEditor(id){
   const n = db.notes.find(x => x.id === id);
   if(!n) return;
   ui.editingId = id;
   ui.preview = false;
+  applyEditorSkin(n);
   $('#editor').classList.remove('preview');
   resetFind();
   $('#edTitle').value = n.title || '';
@@ -2267,10 +2412,69 @@ function openExportMenu(){
   menuItems('导出与备份', items);
 }
 
+/* 外观：三选一，选完立刻生效并记住 */
+function openThemePicker(){
+  const cur = ui.theme || 'system';
+  const opts = [
+    { id:'system', icon:'auto', name:'跟随系统', desc:'随手机设置切换' },
+    { id:'light',  icon:'sun',  name:'浅色',     desc:'白底深色字' },
+    { id:'dark',   icon:'moon', name:'深色',     desc:'黑底浅色字' }
+  ];
+  let h = '<h4>外观</h4>';
+  opts.forEach(function(o){
+    const on = cur === o.id;
+    h += '<button class="sheet-item' + (on ? ' on' : '') + '" data-pick-theme="' + o.id + '">' +
+      icon(o.icon, 19) + '<span>' + o.name + '</span>' +
+      '<span class="pick-desc">' + o.desc + '</span>' +
+      (on ? '<span class="pick-ok">' + icon('check', 16, 2.4) + '</span>' : '') +
+      '</button>';
+  });
+  openSheet(h);
+  $('#sheetRoot').querySelectorAll('[data-pick-theme]').forEach(function(b){
+    b.onclick = function(){
+      setTheme(b.dataset.pickTheme);
+      closeSheet();
+      toast('外观已切换');
+    };
+  });
+}
+
+/* 便签皮肤：点一下就地生效，面板不关，方便来回试 */
+function openSkinPicker(nid){
+  const n = db.notes.find(x => x.id === nid);
+  if(!n) return;
+  const cur = n.skin || 'default';
+
+  let h = '<h4>背景皮肤</h4><div class="skin-grid">';
+  SKINS.forEach(function(s){
+    h += '<button class="skin-cell' + (cur === s.id ? ' on' : '') + '" data-pick-skin="' + s.id + '">' +
+      '<span class="skin-dot" style="background:' + s.sw + '"></span>' +
+      '<span class="skin-name">' + s.name + '</span>' +
+      '<span class="skin-ok">' + icon('check', 12, 2.8) + '</span>' +
+      '</button>';
+  });
+  h += '</div>';
+  openSheet(h);
+
+  $('#sheetRoot').querySelectorAll('[data-pick-skin]').forEach(function(b){
+    b.onclick = function(){
+      const id = b.dataset.pickSkin;
+      n.skin = (id === 'default') ? null : id;
+      save();
+      applyEditorSkin(n);
+      $('#sheetRoot').querySelectorAll('[data-pick-skin]').forEach(function(x){
+        x.classList.toggle('on', x === b);
+      });
+      render();
+    };
+  });
+}
+
 function openMainMenu(){
   menuItems('更多', [
     { icon:'folder', label:'新建文件夹', onClick:function(){ newFolder(ui.folderId); } },
     { icon:'tag',    label:'按标签浏览', onClick:openTagPicker },
+    { icon:'sun',    label:'外观（浅色 / 深色）', onClick:openThemePicker },
     { icon:'down',   label:'导出与备份', onClick:openExportMenu },
     { icon:'info',   label:'关于数据保存', onClick:aboutSheet },
     { icon:'info',   label:'关于这个 App', onClick:aboutApp }
@@ -2309,8 +2513,9 @@ function aboutSheet(){
 
 function aboutApp(){
   openSheet('<h4>关于这个 App</h4><div class="pd-msg">' +
+    '版本 <b>' + APP_VERSION + '</b><br>' +
     '单文件便签应用，数据存在本地。<br><br>' +
-    '手势与快捷键：<br>· 长按便签卡片 → 拖动排序<br>· 点卡片右侧 ⋯ → 置顶 / 标签 / 移动 / 删除<br>· 编辑器右上角眼睛 → Markdown 预览<br>· 顶部标签条 → 按标签筛选</div>' +
+    '手势与快捷键：<br>· 长按便签卡片 → 拖动排序<br>· 点卡片右侧 ⋯ → 置顶 / 标签 / 移动 / 删除<br>· 编辑器右上角 ⋯ → 背景皮肤<br>· 编辑器右上角眼睛 → Markdown 预览<br>· 顶部标签条 → 按标签筛选<br>· 主菜单 ⋯ → 外观（浅色 / 深色）</div>' +
     '<div class="pd-actions"><button class="pd-btn primary" id="abOk2">知道了</button></div>');
   $('#abOk2').onclick = function(){ closeSheet(); };
 }
@@ -2504,6 +2709,7 @@ $('#edMore').onclick = function(){
         n.pinned = !n.pinned; save(); toast(n.pinned ? '已置顶' : '已取消置顶');
       } },
     { icon:'tag',   label:'添加标签', onClick:addTags },
+    { icon:'palette', label:'背景皮肤', onClick:function(){ openSkinPicker(n.id); } },
     { icon:'search', label:'在本便签内查找', onClick:function(){ openFind(''); } },
     { icon:'down',  label:'导出这条便签', onClick:function(){ commitEdits(); openNoteExportMenu(n.id); } },
     { icon:'move',  label:'移动到…',  onClick:function(){ moveNote(n.id); } },
@@ -2531,6 +2737,7 @@ document.addEventListener('visibilitychange', function(){
 /* ============================================================
    10. 启动
    ============================================================ */
+applyTheme();
 loadDB();
 render();
 
@@ -2556,7 +2763,10 @@ window.androidBack = function(){
 };
 
 if(matchMedia('(prefers-color-scheme: dark)').addEventListener){
-  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(){ render(); });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function(){
+    // 只有「跟随系统」时才响应系统切换，手动选过就听用户的
+    if(ui.theme === 'system'){ applyTheme(); render(); }
+  });
 }
 </script>
 </body>
