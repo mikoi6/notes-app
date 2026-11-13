@@ -999,7 +999,7 @@ function icon(name, size=22, sw=1.8){
 const STORE_KEY = 'noteapp.v1';
 
 /* 版本号：改这里，build-apk.sh 会拿它和 build.gradle 的 versionName 对账，不一致就拒绝打包 */
-const APP_VERSION = '1.8.1';
+const APP_VERSION = '1.8.2';
 
 /* 便签皮肤：目前只有纯色。颜色定义在 CSS 的 [data-skin="…"] 里，
    sw 只用来画选择面板上的色点 */
@@ -4299,6 +4299,44 @@ $('#btnFab').onclick = function(){
 $('#edBack').onclick = closeEditor;
 $('#edTitle').addEventListener('input', function(){ maybeUndoSnapshot(); scheduleSave(); if(ui.preview) renderPreview(); });
 $('#edBody').addEventListener('input', function(){ maybeUndoSnapshot(); scheduleSave(); updateCount(); if(ui.preview) renderPreview(); });
+
+/* ---------- 粘贴到标题：一大段文字直接进正文 ----------
+   新建便签时多半是「先把东西粘进来」，手快就粘在标题上了。
+   这时得自己剪切 → 点正文 → 再粘一次，纯属白费手脚。
+   只拦两件事，其余照常粘：带换行的（标题本来就装不下），和超过 40 字的
+   （不会有人把一整段话当标题）。整段就是一个网址的例外——书签便签的标题
+   本来就是那个链接，长也合理。
+   阈值就这一个数，觉得太松或太紧改这里。 */
+const TITLE_PASTE_MAX = 40;
+
+function pasteGoesToBody(text){
+  const t = String(text || '').replace(/\r\n?/g, '\n').trim();
+  if(!t) return false;
+  if(t.indexOf('\n') !== -1) return true;                    // 多行，标题里放不下
+  if(t.length <= TITLE_PASTE_MAX) return false;              // 短标题，照常粘
+  if(/^(https?:\/\/|www\.)\S+$/i.test(t)) return false;      // 整段就是一个网址
+  return true;
+}
+
+$('#edTitle').addEventListener('paste', function(e){
+  const data = e.clipboardData ? e.clipboardData.getData('text/plain') : '';
+  // 拿不到剪贴板内容（老 WebView）就别拦，拦了会把粘的东西吞掉
+  if(!pasteGoesToBody(data)) return;
+  e.preventDefault();
+  const body = $('#edBody');
+  // 正文里已经有东西就接在末尾。光标停在标题上，不存在「插在这儿」，
+  // 与其猜一个位置，不如给一个每次都一样的落点
+  if(body.value && !/\n$/.test(body.value)) body.value += '\n\n';
+  body.value += data.replace(/\r\n?/g, '\n');
+  maybeUndoSnapshot();
+  updateCount();
+  scheduleSave();
+  // 放进正文却还停在预览，屏幕上什么都没变，看着像是没粘上
+  if(ui.preview) setPreview(false);
+  body.focus();
+  body.setSelectionRange(body.value.length, body.value.length);
+  toast('已放进正文');
+});
 
 $('#edUndo').onclick = doUndo;
 $('#edRedo').onclick = doRedo;
