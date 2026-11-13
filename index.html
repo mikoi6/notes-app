@@ -999,7 +999,7 @@ function icon(name, size=22, sw=1.8){
 const STORE_KEY = 'noteapp.v1';
 
 /* 版本号：改这里，build-apk.sh 会拿它和 build.gradle 的 versionName 对账，不一致就拒绝打包 */
-const APP_VERSION = '1.8.0';
+const APP_VERSION = '1.8.1';
 
 /* 便签皮肤：目前只有纯色。颜色定义在 CSS 的 [data-skin="…"] 里，
    sw 只用来画选择面板上的色点 */
@@ -2078,6 +2078,8 @@ function scheduleSave(){
 
 function closeEditor(){
   const n = db.notes.find(x => x.id === ui.editingId);
+  // 预览里正改着一块就直接退出：先把那块落盘，不然改动只留在 DOM 里
+  if(blockEdit) commitBlockEdit();
   commitEdits();
   if(n && ui.edOpenSnap){
     // 只有真的改过才补记；点开看一眼就关掉不该攒历史
@@ -4429,7 +4431,11 @@ document.addEventListener('keydown', function(e){
 });
 
 document.addEventListener('visibilitychange', function(){
-  if(document.hidden && ui.editingId){ clearTimeout(saveTimer); commitEdits(); }
+  if(document.hidden && ui.editingId){
+    clearTimeout(saveTimer);
+    if(blockEdit) commitBlockEdit();
+    commitEdits();
+  }
 });
 
 /* ============================================================
