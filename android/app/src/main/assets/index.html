@@ -331,6 +331,44 @@ h1,h2,h3,h4,p{margin:0}
   display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
 }
 .nc-time{margin-top:6px; font-size:11px; color:var(--t2)}
+
+/* 批量选择 */
+.sec-act{
+  margin-left:auto; font-size:12px; font-weight:600; color:var(--accent);
+  padding:3px 6px; border-radius:7px;
+}
+.sec-act:active{background:var(--soft)}
+.note-card.sel-on{box-shadow:var(--shadow), inset 0 0 0 2px var(--accent)}
+.sel-dot{
+  position:absolute; left:11px; top:15px;
+  width:20px; height:20px; border-radius:50%;
+  border:1.6px solid var(--t2); background:var(--surface);
+  display:grid; place-items:center; color:#fff;
+}
+.sel-dot svg{opacity:0; transition:opacity .12s}
+.sel-dot.on{background:var(--accent); border-color:var(--accent)}
+.sel-dot.on svg{opacity:1}
+body.sel-mode .note-card{padding-left:42px}
+body.sel-mode .note-card .more{display:none}
+body.sel-mode .tabbar, body.sel-mode .fab, body.sel-mode #btnSearch{display:none}
+body.sel-mode #view{padding-bottom:92px}
+#selBar{
+  position:fixed; left:0; right:0; bottom:0; z-index:70;
+  display:none; gap:4px;
+  padding:8px 10px calc(8px + env(safe-area-inset-bottom));
+  background:var(--bar); backdrop-filter:blur(18px);
+  -webkit-backdrop-filter:blur(18px);
+  border-top:1px solid var(--line);
+}
+body.sel-mode #selBar{display:flex}
+.sel-act{
+  flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;
+  padding:7px 2px; border-radius:12px;
+  font-size:11px; font-weight:500; color:var(--text);
+}
+.sel-act:active{background:var(--surface-2)}
+.sel-act.danger{color:var(--danger)}
+.sel-act:disabled{opacity:.35}
 .note-tags{
   display:flex; gap:5px; margin-top:7px; overflow:hidden; max-height:20px;
 }
@@ -592,6 +630,30 @@ h1,h2,h3,h4,p{margin:0}
   border-width:0 2px 2px 0; transform:rotate(45deg);
 }
 .md-body ul ul,.md-body ul ol,.md-body ol ul,.md-body ol ol{margin:3px 0}
+
+/* 预览态就地编辑：鼠标悬停给个淡底，点下去整块变成可编辑。
+   描边用 outline 而不是 border，免得一加边框整段文字被挤得跳一下 */
+/* 只过渡阴影：background 一旦加了过渡，切换代码块样式时会先闪一帧旧底色 */
+.md-body [data-bs]{border-radius:6px; transition:box-shadow .12s}
+@media (hover:hover){
+  #editor.preview .md-body [data-bs]:hover{
+    background:rgba(var(--accent-rgb),.07);
+    box-shadow:0 0 0 6px rgba(var(--accent-rgb),.07);
+    cursor:text;
+  }
+}
+#editor.preview .md-body [contenteditable="true"]{
+  outline:2px solid var(--accent); outline-offset:5px;
+  background:rgba(var(--accent-rgb),.07);
+  box-shadow:none; cursor:text;
+}
+#editor.preview .md-body [contenteditable="true"] a{pointer-events:none}
+#editor.preview .md-body li.task input{cursor:pointer; pointer-events:auto}
+#edTip{display:none; font-size:11px; font-weight:400; color:var(--t2); margin-left:8px}
+#editor.preview #edTip{display:inline}
+#edTip.on{color:var(--accent)}
+/* 编辑中的代码块不要被 hover 底色盖住行内高亮 */
+#editor.preview .md-body pre[contenteditable="true"]{background:var(--surface-2)}
 
 /* 便签内查找 */
 #edFind{display:none; align-items:center; gap:4px; padding:0 10px 10px}
@@ -882,12 +944,14 @@ mark.hl{
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M16 5l4 4-4 4"/><path d="M20 9H10a5.2 5.2 0 0 0 0 10.4h3"/></svg>
       </button>
       <span id="edCount">0 字</span>
+      <span id="edTip"></span>
     </div>
     <span id="edSaved"></span>
   </footer>
 </div>
 
 <div id="sheetRoot"></div>
+<div id="selBar"></div>
 <div id="toast"></div>
 <input type="file" id="fileInput" accept="application/json,.json" style="display:none" />
 <!-- 导入数据包：zip、多选文件、整个目录分别走一个 input，
@@ -935,7 +999,7 @@ function icon(name, size=22, sw=1.8){
 const STORE_KEY = 'noteapp.v1';
 
 /* 版本号：改这里，build-apk.sh 会拿它和 build.gradle 的 versionName 对账，不一致就拒绝打包 */
-const APP_VERSION = '1.7.0';
+const APP_VERSION = '1.8.0';
 
 /* 便签皮肤：目前只有纯色。颜色定义在 CSS 的 [data-skin="…"] 里，
    sw 只用来画选择面板上的色点 */
@@ -1028,6 +1092,7 @@ try{ savedTheme = localStorage.getItem(THEME_KEY) || 'system'; }catch(e){}
 
 let ui = { view:'notes', folderId:null, searching:false, query:'', editingId:null,
            tagFilter:null, preview:false, suppressClick:false, outlineOn:false,
+           selMode:false, sel:new Set(),
            theme:savedTheme };
 
 /* 主题：light / dark / system 三种，system 时实时跟随系统 */
@@ -1110,7 +1175,7 @@ function seed(){
   db.folders.push(work, week, life);
   db.notes.push(
     { id:uid(), folderId:null, title:'欢迎使用便签', tags:['入门'], pinned:true, order:0,
-      content:'## 能做什么\n\n- 点右下角 **+** 新建便签或文件夹\n- 文件夹可以**无限套娃**，比如 工作 / 周报 / 第46周\n- 长按便签卡片可以**拖动排序**\n- 右上角 ⋯ → 置顶、加标签\n- 右上角 **眼睛** 图标可以看 Markdown 预览\n\n> 数据只存在这台设备，记得定期导出备份。',
+      content:'## 能做什么\n\n- 点右下角 **+** 新建便签或文件夹\n- 文件夹可以**无限套娃**，比如 工作 / 周报 / 第46周\n- 长按便签卡片可以**拖动排序**\n- 便签区右上「选择」可以**批量**删除、移动、换皮肤\n- 右上角 ⋯ → 置顶、加标签\n- 预览里**点任意段落**就能直接改，不用对着符号找位置\n- 预览里点勾选框直接打勾\n\n> 数据只存在这台设备，记得定期导出备份。',
       createdAt:now, updatedAt:now },
     { id:uid(), folderId:work.id, title:'开会要带的材料', tags:['工作','待办'], pinned:false, order:1,
       content:'1. 上季度数据\n2. 竞品对比\n3. 下季度目标拆解',
@@ -1197,11 +1262,13 @@ function render(){
   if(ui.tagFilter) title = '#' + ui.tagFilter;
   else if(ui.searching) title = '搜索';
   else if(cur) title = cur.name;
+  if(ui.selMode) title = '已选 ' + ui.sel.size + ' 条';
 
+  document.body.classList.toggle('sel-mode', !!ui.selMode);
   $('#appTitle').textContent = title;
-  $('#btnBack').style.visibility = (cur && !ui.searching && !ui.tagFilter) ? 'visible' : 'hidden';
+  $('#btnBack').style.visibility = (ui.selMode || (cur && !ui.searching && !ui.tagFilter)) ? 'visible' : 'hidden';
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.tab === ui.view));
-  $('#btnFab').style.display = (ui.searching || ui.tagFilter) ? 'none' : '';
+  $('#btnFab').style.display = (ui.searching || ui.tagFilter || ui.selMode) ? 'none' : '';
 
   const v = $('#view');
   if(ui.searching)        v.innerHTML = viewSearch();
@@ -1232,8 +1299,9 @@ function viewNotes(){
     h += '<div class="folder-grid">' + fs.map(folderCard).join('') + '</div>';
   }
   if(ns.length){
-    h += '<div class="sec">便签<em>' + ns.length + '</em><span style="margin-left:auto;font-weight:400;opacity:.6;font-size:11px">长按可拖动排序</span></div>';
-    h += '<div class="note-list" id="noteList">' + ns.map(noteCard).join('') + '</div>';
+    h += '<div class="sec">便签<em>' + ns.length + '</em>' +
+         '<button class="sec-act" data-sel-mode>' + (ui.selMode ? '完成' : '选择') + '</button></div>';
+    h += '<div class="note-list" id="noteList">' + ns.map(n => noteCard(n)).join('') + '</div>';
   }
   if(!fs.length && !ns.length){
     h += '<div class="empty">' + icon('note',44,1.4) +
@@ -1377,9 +1445,11 @@ function noteCard(n, showPath, q){
       (rest > 0 ? '<span class="mini-tag more-tag">+' + rest + '</span>' : '') +
       '</div>';
   }
-  return '<div class="note-card' + (n.pinned ? ' pinned' : '') + '"' +
+  const picked = ui.selMode && ui.sel.has(n.id);
+  return '<div class="note-card' + (n.pinned ? ' pinned' : '') + (picked ? ' sel-on' : '') + '"' +
       (n.skin ? ' data-skin="' + n.skin + '"' : '') +
       ' data-open-note="' + n.id + '" data-drag-note="' + n.id + '">' +
+      (ui.selMode ? '<span class="sel-dot' + (picked ? ' on' : '') + '">' + icon('check',12,3.2) + '</span>' : '') +
       '<div class="nc-main">' +
         '<h3>' + (n.pinned ? '<i class="pin-ico">' + icon('pin',13,2) + '</i>' : '') +
           '<span>' + hlText(title, q) + '</span></h3>' +
@@ -1443,8 +1513,15 @@ function viewSearch(){
    围栏代码块、引用（内部可再放列表或表格）、有序 / 无序 / 任务列表（多级）、
    GFM 表格（含 :--: 对齐）、链接、图片、自动链接、分割线、反斜杠转义。
    所有文本先 esc()，链接与图片只放行 http(s)/mailto，避免 XSS。 */
-function mdToHtml(src){
+function mdToHtml(src, map){
   if(!src || !src.trim()) return '<p class="md-empty">还没有内容</p>';
+
+  /* map 为真时给每个顶层块打上「源码行范围」data-bs / data-be，
+     预览态点一下就知道该改哪几行。导出 HTML 和单元测试不带这两个属性 */
+  function stamp(html, s, e){
+    if(!map) return html;
+    return html.replace(/^<([a-zA-Z0-9]+)/, '<$1 data-bs="' + s + '" data-be="' + e + '"');
+  }
 
   /* 已生成的 HTML 片段先存起来换成占位符，
      否则后面的强调 / 链接规则会把标签本身再处理一遍 */
@@ -1597,7 +1674,7 @@ function mdToHtml(src){
         if(tm){ task = tm[1].toLowerCase() === 'x'; body = tm[2]; }
         html += '<li' + (task === null ? '' : ' class="task"') + '>' +
                 (task === null ? '' :
-                  '<input type="checkbox" disabled' + (task ? ' checked' : '') + ' /> ') +
+                  '<input type="checkbox"' + (map ? '' : ' disabled') + (task ? ' checked' : '') + ' /> ') +
                 inline(body) + '</li>';
       }
       if(!tag) return html;
@@ -1614,19 +1691,24 @@ function mdToHtml(src){
     return html;
   }
 
-  function parseBlocks(lines){
+  function parseBlocks(lines, top){
     const out = [];
-    let i = 0, para = [];
+    let i = 0, para = [], paraS = 0;
+
+    function emit(html, s2, e){
+      out.push(top ? stamp(html, s2, e) : html);
+    }
 
     function flushPara(){
       if(!para.length) return;
       // 段落里的换行拼成一行，硬换行处留 \u0002 占位
-      out.push('<p>' + inline(joinPara(para)).replace(/\u0002/g, '<br />') + '</p>');
+      emit('<p>' + inline(joinPara(para)).replace(/\u0002/g, '<br />') + '</p>', paraS, i);
       para = [];
     }
 
     while(i < lines.length){
       const line = lines[i];
+      const start = i;
 
       // 围栏代码块（``` 或 ~~~）
       const fence = line.match(/^\s*(```|~~~)/);
@@ -1639,7 +1721,7 @@ function mdToHtml(src){
           buf.push(lines[i]); i++;
         }
         i++;
-        out.push('<pre><code>' + esc(buf.join('\n')) + '</code></pre>');
+        emit('<pre><code>' + esc(buf.join('\n')) + '</code></pre>', start, i);
         continue;
       }
 
@@ -1653,7 +1735,7 @@ function mdToHtml(src){
         while(i < lines.length && lines[i].trim() && lines[i].indexOf('|') !== -1){
           rows.push(splitRow(lines[i])); i++;
         }
-        out.push(tableHtml(head, aligns, rows));
+        emit(tableHtml(head, aligns, rows), start, i);
         continue;
       }
 
@@ -1662,21 +1744,23 @@ function mdToHtml(src){
       if(m){
         flushPara();
         const lv = m[1].length;
-        out.push('<h' + lv + '>' + inline(m[2]) + '</h' + lv + '>');
-        i++; continue;
+        i++;
+        emit('<h' + lv + '>' + inline(m[2]) + '</h' + lv + '>', start, i);
+        continue;
       }
 
       // 分割线
       if(/^\s*([-*_])\s*\1\s*\1[\s\1]*$/.test(line)){
-        flushPara(); out.push('<hr />'); i++; continue;
+        flushPara(); i++; emit('<hr />', start, i); continue;
       }
 
       // setext 标题：下一行全是 = 或 -
       if(line.trim() && i + 1 < lines.length && /^\s*(=+|-+)\s*$/.test(lines[i + 1])){
         flushPara();
         const lv = lines[i + 1].indexOf('=') !== -1 ? 1 : 2;
-        out.push('<h' + lv + '>' + inline(line.trim()) + '</h' + lv + '>');
-        i += 2; continue;
+        i += 2;
+        emit('<h' + lv + '>' + inline(line.trim()) + '</h' + lv + '>', start, i);
+        continue;
       }
 
       // 引用：内部递归解析，所以引用里也能放列表和表格
@@ -1686,7 +1770,7 @@ function mdToHtml(src){
         while(i < lines.length && /^\s*>/.test(lines[i])){
           buf.push(lines[i].replace(/^\s*>\s?/, '')); i++;
         }
-        out.push('<blockquote>' + parseBlocks(buf).join('\n') + '</blockquote>');
+        emit('<blockquote>' + parseBlocks(buf, false).join('\n') + '</blockquote>', start, i);
         continue;
       }
 
@@ -1705,7 +1789,7 @@ function mdToHtml(src){
           if(!lines[i].trim() && i + 1 < lines.length && listItem(lines[i + 1])){ i++; continue; }
           break;
         }
-        out.push(listHtml(items));
+        emit(listHtml(items), start, i);
         continue;
       }
 
@@ -1713,6 +1797,7 @@ function mdToHtml(src){
       if(!line.trim()){ flushPara(); i++; continue; }
 
       // 普通段落行：保留行尾空格（硬换行要用）
+      if(!para.length) paraS = i;
       para.push(line.replace(/^\s+/, ''));
       i++;
     }
@@ -1720,7 +1805,7 @@ function mdToHtml(src){
     return out;
   }
 
-  return parseBlocks(src.replace(/\r\n?/g, '\n').split('\n')).join('\n');
+  return parseBlocks(src.replace(/\r\n?/g, '\n').split('\n'), true).join('\n');
 }
 
 /* ============================================================
@@ -2340,6 +2425,7 @@ const drag = {
 };
 
 function dragStart(e){
+  if(ui.selMode) return false;   // 多选时点卡片是勾选，不是拖排序
   const card = e.target.closest('[data-drag-note]');
   if(!card || !card.closest('#noteList')) return false;
   if(e.target.closest('.more')) return false;
@@ -3505,14 +3591,20 @@ function openLookSheet(){
 }
 
 /* 便签皮肤：点一下就地生效，面板不关，方便来回试 */
-function openSkinPicker(nid){
-  const n = db.notes.find(x => x.id === nid);
-  if(!n) return;
-  const cur = n.skin || 'default';
+/* 既能给单条便签换皮肤，也能给批量选中的一堆一起换 */
+function openSkinPicker(ids){
+  const want = Array.isArray(ids) ? ids : [ids];
+  const list = want.map(function(id){
+    return db.notes.find(function(x){ return x.id === id; });
+  }).filter(Boolean);
+  if(!list.length) return;
+  const cur = list[0].skin || 'default';
+  const same = list.every(function(n){ return (n.skin || 'default') === cur; });
+  const head = list.length > 1 ? '给 ' + list.length + ' 条便签换皮肤' : '背景皮肤';
 
-  let h = '<h4>背景皮肤</h4><div class="skin-grid">';
+  let h = '<h4>' + esc(head) + '</h4><div class="skin-grid">';
   SKINS.forEach(function(s){
-    h += '<button class="skin-cell' + (cur === s.id ? ' on' : '') + '" data-pick-skin="' + s.id + '">' +
+    h += '<button class="skin-cell' + (same && cur === s.id ? ' on' : '') + '" data-pick-skin="' + s.id + '">' +
       '<span class="skin-dot" style="background:' + s.sw + '"></span>' +
       '<span class="skin-name">' + s.name + '</span>' +
       '<span class="skin-ok">' + icon('check', 12, 2.8) + '</span>' +
@@ -3524,19 +3616,30 @@ function openSkinPicker(nid){
   $('#sheetRoot').querySelectorAll('[data-pick-skin]').forEach(function(b){
     b.onclick = function(){
       const id = b.dataset.pickSkin;
-      n.skin = (id === 'default') ? null : id;
+      list.forEach(function(n){ n.skin = (id === 'default') ? null : id; });
       save();
-      applyEditorSkin(n);
+      // 编辑器里正开着的那条要立刻换色；其余等回列表再看
+      const ed = db.notes.find(function(x){ return x.id === ui.editingId; });
+      if(ed) applyEditorSkin(ed);
       $('#sheetRoot').querySelectorAll('[data-pick-skin]').forEach(function(x){
         x.classList.toggle('on', x === b);
       });
       render();
+      if(list.length > 1) toast('已给 ' + list.length + ' 条便签换皮肤');
     };
   });
 }
 
 function openMainMenu(){
   menuItems('更多', [
+    { icon:'check',  label:'批量选择（删除 / 移动 / 换皮肤）', onClick:function(){
+        if(!db.notes.length){ toast('还没有便签'); return; }
+        ui.view = 'notes';
+        ui.tagFilter = null;
+        ui.searching = false;
+        $('#searchBar').classList.remove('on');
+        setSelMode(true);
+      } },
     { icon:'folder', label:'新建文件夹', onClick:function(){ newFolder(ui.folderId); } },
     { icon:'tag',    label:'按标签浏览', onClick:openTagPicker },
     { icon:'palette',label:'个性化设置（皮肤 / 样式）', onClick:openLookSheet },
@@ -3580,16 +3683,481 @@ function aboutApp(){
   openSheet('<h4>关于这个 App</h4><div class="pd-msg">' +
     '版本 <b>' + APP_VERSION + '</b><br>' +
     '单文件便签应用，数据存在本地。<br><br>' +
-    '手势与快捷键：<br>· 长按便签卡片 → 拖动排序<br>· 点卡片右侧 ⋯ → 置顶 / 标签 / 移动 / 删除<br>· 编辑器右上角 ⋯ → 背景皮肤<br>· 编辑器右上角眼睛 → Markdown 预览<br>· 顶部标签条 → 按标签筛选<br>· 主菜单 ⋯ → 个性化设置（主题色 / 表格 / 代码块 / 字号）</div>' +
+    '手势与快捷键：<br>· 长按便签卡片 → 拖动排序<br>· 便签区右上「选择」→ 批量删除 / 移动 / 换皮肤<br>· 点卡片右侧 ⋯ → 置顶 / 标签 / 移动 / 删除<br>· 预览态点任意段落 → 就地改，不用切回源码<br>· 预览态点勾选框 → 直接打勾<br>· 编辑器右上角 ⋯ → 背景皮肤<br>· 编辑器右上角眼睛 → 切回 Markdown 源码<br>· 顶部标签条 → 按标签筛选<br>· 主菜单 ⋯ → 个性化设置（主题色 / 表格 / 代码块 / 字号）</div>' +
     '<div class="pd-actions"><button class="pd-btn primary" id="abOk2">知道了</button></div>');
   $('#abOk2').onclick = function(){ closeSheet(); };
 }
+
+/* ============================================================
+   8.5 预览态就地编辑
+   预览里点哪一块就改哪一块：该块变成 contenteditable，改完把这一块
+   重新序列化成 Markdown，只替换它对应的那几行源码，别处一概不动。
+   好处是不用看满屏符号，也不至于像「整篇 WYSIWYG」那样一动就跑格式。
+   ============================================================ */
+let blockEdit = null;
+let blockLock = false;     // 提交过程中别被 focusout 再打断一次
+
+function updateEdTip(){
+  const el = $('#edTip');
+  if(!el) return;
+  if(blockEdit){ el.textContent = '改完点空白处'; el.classList.add('on'); }
+  else if(ui.preview){ el.textContent = '点段落直接改'; el.classList.remove('on'); }
+  else { el.textContent = ''; el.classList.remove('on'); }
+}
+
+/* 文本节点里的 Markdown 元字符要转义，否则「a*b」这种内容改完再渲染就跑版 */
+function mdEscInline(t){
+  return String(t).replace(/\u00a0/g, ' ').replace(/([\\`*_\[\]])/g, '\\$1');
+}
+
+/* DOM → 行内 Markdown。块级子节点（列表 / 代码块 / 表格）由各自的函数处理 */
+function mdInlineSrc(node){
+  let out = '';
+  Array.prototype.forEach.call(node.childNodes, function(ch){
+    if(ch.nodeType === 3){ out += mdEscInline(ch.nodeValue); return; }
+    if(ch.nodeType !== 1) return;
+    const tag = ch.tagName.toLowerCase();
+    if(tag === 'br'){ out += '\\\n'; return; }              // 硬换行
+    if(tag === 'input'){ return; }                           // 任务勾选框不写进正文
+    if(tag === 'ul' || tag === 'ol' || tag === 'pre' ||
+       tag === 'table' || tag === 'blockquote'){ return; }
+    if(tag === 'code'){
+      const t = String(ch.textContent || '').replace(/\n/g, ' ');
+      if(!t) return;
+      const q = t.indexOf('`') > -1 ? '``' : '`';
+      out += q + (q === '``' ? ' ' + t + ' ' : t) + q;
+      return;
+    }
+    if(tag === 'strong' || tag === 'b'){ out += '**' + mdInlineSrc(ch) + '**'; return; }
+    if(tag === 'em' || tag === 'i'){ out += '*' + mdInlineSrc(ch) + '*'; return; }
+    if(tag === 'del' || tag === 's' || tag === 'strike'){ out += '~~' + mdInlineSrc(ch) + '~~'; return; }
+    if(tag === 'a'){
+      const href = ch.getAttribute('href') || '';
+      const txt = mdInlineSrc(ch);
+      if(!href){ out += txt; return; }
+      out += (txt === href ? '<' + href + '>' : '[' + txt + '](' + href + ')');
+      return;
+    }
+    if(tag === 'img'){
+      out += '![' + mdEscInline(ch.getAttribute('alt') || '') + '](' + (ch.getAttribute('src') || '') + ')';
+      return;
+    }
+    out += mdInlineSrc(ch);
+  });
+  return out;
+}
+
+/* 列表：按缩进递归，任务项还原成 - [ ] / - [x] */
+function mdListSrc(el, indent, out){
+  const pad = new Array(indent + 1).join(' ');
+  const ordered = el.tagName === 'OL';
+  let num = parseInt(el.getAttribute('start') || '1', 10) || 1;
+  Array.prototype.forEach.call(el.children, function(li){
+    if(li.tagName !== 'LI') return;
+    const isTask = li.classList.contains('task');
+    let mark;
+    if(isTask){
+      const cb = li.querySelector('input[type="checkbox"]');
+      mark = '- [' + (cb && cb.checked ? 'x' : ' ') + ']';
+    }else{
+      mark = ordered ? (num++) + '.' : '-';
+    }
+    // 任务项的勾选框后面自带一个空格，直接拼会变成「- [x]  已完成」
+    const parts = String(mdInlineSrc(li)).replace(/^[ \t]+/, '').split('\n');
+    out.push(pad + mark + ' ' + parts[0]);
+    for(let k = 1; k < parts.length; k++) out.push(pad + '   ' + parts[k]);
+    Array.prototype.forEach.call(li.children, function(ch){
+      if(ch.tagName === 'UL' || ch.tagName === 'OL') mdListSrc(ch, indent + 2, out);
+    });
+  });
+}
+
+function mdTableSrc(box){
+  const tb = box.tagName === 'TABLE' ? box : box.querySelector('table');
+  if(!tb) return null;
+  const rows = Array.prototype.slice.call(tb.querySelectorAll('tr'));
+  if(!rows.length) return null;
+  const cell = function(c){
+    return mdInlineSrc(c).replace(/\n/g, ' ').replace(/\|/g, '\\|').trim();
+  };
+  const headCells = Array.prototype.slice.call(rows[0].children);
+  const head = headCells.map(cell);
+  const cols = Math.max(1, head.length);
+  const aligns = headCells.map(function(c){
+    if(c.classList.contains('ta-c')) return 'c';
+    if(c.classList.contains('ta-r')) return 'r';
+    if(c.classList.contains('ta-l')) return 'l';
+    return '';
+  });
+  const line = function(cells){
+    const v = [];
+    for(let k = 0; k < cols; k++) v.push(k < cells.length && cells[k] ? cells[k] : ' ');
+    return '| ' + v.join(' | ') + ' |';
+  };
+  const out = [line(head), '| ' + aligns.map(function(a){
+    return a === 'c' ? ':---:' : a === 'r' ? '---:' : a === 'l' ? ':---' : '---';
+  }).join(' | ') + ' |'];
+  rows.slice(1).forEach(function(tr){
+    out.push(line(Array.prototype.map.call(tr.children, cell)));
+  });
+  return out;
+}
+
+function mdPreSrc(el){
+  const code = el.tagName === 'CODE' ? el : (el.querySelector('code') || el);
+  // 编辑器里回车可能落成 <br>，textContent 拿不到换行，innerText 才准
+  let t = (typeof code.innerText === 'string' && code.innerText) ? code.innerText : (code.textContent || '');
+  t = String(t).replace(/\u00a0/g, ' ').replace(/\n+$/, '');
+  return ['```'].concat(t.split('\n')).concat(['```']);
+}
+
+function mdQuoteSrc(bq){
+  const lines = [];
+  Array.prototype.forEach.call(bq.children, function(ch){
+    if(ch.tagName === 'UL' || ch.tagName === 'OL') mdListSrc(ch, 0, lines);
+    else if(ch.tagName === 'PRE') mdPreSrc(ch).forEach(function(x){ lines.push(x); });
+    else mdInlineSrc(ch).split('\n').forEach(function(x){ lines.push(x); });
+  });
+  return lines.map(function(l){ return l ? '> ' + l : '>'; });
+}
+
+function blockSrcLines(el){
+  const tag = el.tagName;
+  if(tag === 'PRE') return mdPreSrc(el);
+  if(tag === 'UL' || tag === 'OL'){ const out = []; mdListSrc(el, 0, out); return out; }
+  if(tag === 'BLOCKQUOTE') return mdQuoteSrc(el);
+  if(el.classList.contains('md-table') || tag === 'TABLE') return mdTableSrc(el);
+  if(/^H[1-6]$/.test(tag)){
+    const hashes = new Array(+tag.charAt(1) + 1).join('#');
+    return mdInlineSrc(el).split('\n').map(function(t, k){
+      return k === 0 ? (hashes + ' ' + t.trim()).replace(/\s+$/, '') : t;
+    });
+  }
+  return mdInlineSrc(el).split('\n');
+}
+
+function placeCaret(el, ev){
+  try{
+    const sel = window.getSelection();
+    let r = null;
+    if(ev && document.caretRangeFromPoint){
+      r = document.caretRangeFromPoint(ev.clientX, ev.clientY);
+    }
+    if(r && el.contains(r.startContainer)){
+      sel.removeAllRanges(); sel.addRange(r);
+      return;
+    }
+    const end = document.createRange();
+    end.selectNodeContents(el); end.collapse(false);
+    sel.removeAllRanges(); sel.addRange(end);
+  }catch(e){ /* 定位失败就退化成末尾，别让编辑开不起来 */ }
+}
+
+function startBlockEdit(el, ev){
+  if(!ui.preview || blockLock) return;
+  if(el.tagName === 'HR' || el.classList.contains('md-empty')) return;
+  if(blockEdit) commitBlockEdit();
+
+  const bs = +el.dataset.bs, be = +el.dataset.be;
+  if(!(be > bs)) return;
+  // 用 bs/be 回查当前 DOM 里的那一块：上一次提交后节点已经换过一批
+  const live = $('#edPreview').querySelector('[data-bs="' + bs + '"][data-be="' + be + '"]');
+  if(!live) return;
+  el = live;
+
+  if(el.classList.contains('md-table')){
+    el.querySelectorAll('th,td').forEach(function(c){ c.setAttribute('tabindex', '-1'); });
+  }
+  blockEdit = { el: el, bs: bs, be: be, scroll: $('#edPreview').scrollTop };
+  el.setAttribute('contenteditable', 'true');
+  el.classList.add('blk-edit');
+  el.spellcheck = false;
+  el.focus();
+  placeCaret(el, ev);
+  updateEdTip();
+}
+
+function commitBlockEdit(){
+  if(!blockEdit || blockLock) return;
+  const el = blockEdit.el, bs = blockEdit.bs, be = blockEdit.be, sc = blockEdit.scroll;
+  blockLock = true;
+  let lines = null;
+  try{ lines = blockSrcLines(el); }catch(e){ lines = null; }
+  el.removeAttribute('contenteditable');
+  el.classList.remove('blk-edit');
+  blockEdit = null;
+
+  if(lines){
+    const ta = $('#edBody');
+    const src = ta.value.split('\n');
+    if(be <= src.length){
+      const text = src.slice(0, bs).concat(lines, src.slice(be)).join('\n');
+      if(text !== ta.value){
+        undoSnapshot();
+        ta.value = text;
+        updateCount();
+        commitEdits();
+      }
+    }
+  }
+  renderPreview();
+  $('#edPreview').scrollTop = sc;
+  blockLock = false;
+  updateEdTip();
+}
+
+function cancelBlockEdit(){
+  if(!blockEdit || blockLock) return;
+  const el = blockEdit.el, sc = blockEdit.scroll;
+  el.removeAttribute('contenteditable');
+  blockEdit = null;
+  renderPreview();
+  $('#edPreview').scrollTop = sc;
+  updateEdTip();
+}
+
+/* 点任务勾选框直接把源码里的 [ ] / [x] 翻过来，不用进编辑态 */
+function toggleTaskBox(box){
+  const blk = box.closest('[data-bs]');
+  if(!blk) return;
+  const bs = +blk.dataset.bs, be = +blk.dataset.be;
+  const boxes = Array.prototype.slice.call(blk.querySelectorAll('input[type="checkbox"]'));
+  const k = boxes.indexOf(box);
+  const ta = $('#edBody');
+  const lines = ta.value.split('\n');
+  const sc = $('#edPreview').scrollTop;
+  let seen = -1;
+  for(let i = bs; i < be && i < lines.length; i++){
+    if(!/^\s*[-*+]\s+\[[ xX]\]/.test(lines[i])) continue;
+    seen++;
+    if(seen !== k) continue;
+    lines[i] = lines[i].replace(/\[([ xX])\]/, function(_, c){ return c === ' ' ? '[x]' : '[ ]'; });
+    undoSnapshot();
+    ta.value = lines.join('\n');
+    updateCount();
+    commitEdits();
+    renderPreview();
+    $('#edPreview').scrollTop = sc;
+    return;
+  }
+}
+
+$('#edPreview').addEventListener('click', function(e){
+  if(!ui.preview || blockLock) return;
+  // 链接照常打开，别被「点一下就编辑」拦下来
+  if(e.target.closest('a')) return;
+  const box = e.target.closest('input[type="checkbox"]');
+  if(box){ e.preventDefault(); toggleTaskBox(box); return; }
+  if(blockEdit && blockEdit.el.contains(e.target)) return;
+  const blk = e.target.closest('[data-bs]');
+  if(!blk) return;
+  // 已经拖选了一段文字，说明想复制而不是改，放过
+  const sel = window.getSelection();
+  if(sel && String(sel).trim()) return;
+  startBlockEdit(blk, e);
+});
+
+$('#edPreview').addEventListener('keydown', function(e){
+  if(!blockEdit) return;
+  if(e.key === 'Escape'){ e.preventDefault(); cancelBlockEdit(); return; }
+  const el = blockEdit.el;
+
+  if(e.key === 'Enter'){
+    // 表格里回车 = 收工；标题回车也是收工（不然会把标题拆两半）
+    if(el.classList.contains('md-table') || /^H[1-6]$/.test(el.tagName)){
+      e.preventDefault(); commitBlockEdit(); return;
+    }
+    if(el.tagName === 'PRE' || el.tagName === 'UL' ||
+       el.tagName === 'OL' || el.tagName === 'BLOCKQUOTE') return;   // 交给浏览器
+    // 段落里回车写成硬换行，保证「一个块 = 一段源码」，不会把后面的行挤乱
+    e.preventDefault();
+    document.execCommand('insertLineBreak');
+    return;
+  }
+
+  if(e.key === 'Tab' && el.classList.contains('md-table')){
+    e.preventDefault();
+    const cells = Array.prototype.slice.call(el.querySelectorAll('th,td'));
+    const nxt = cells[cells.indexOf(document.activeElement) + (e.shiftKey ? -1 : 1)];
+    if(nxt){ nxt.focus(); placeCaret(nxt); }
+    else commitBlockEdit();
+  }
+});
+
+// 粘贴只取纯文本，免得把别的网页的字体、颜色整套搬进来
+$('#edPreview').addEventListener('paste', function(e){
+  if(!blockEdit) return;
+  e.preventDefault();
+  const t = ((e.clipboardData || window.clipboardData).getData('text/plain') || '');
+  document.execCommand('insertText', false, t);
+});
+
+$('#edPreview').addEventListener('focusout', function(){
+  if(!blockEdit || blockLock) return;
+  setTimeout(function(){
+    if(!blockEdit || blockLock) return;
+    if(!blockEdit.el.contains(document.activeElement)) commitBlockEdit();
+  }, 0);
+});
+
+/* ============================================================
+   8.6 批量选择
+   ============================================================ */
+function selBarHtml(){
+  return '<button class="sel-act" data-sel="all">' + icon('check',20,2.2) + '<span>全选</span></button>' +
+         '<button class="sel-act" data-sel="move">' + icon('move',20,1.9) + '<span>移动</span></button>' +
+         '<button class="sel-act" data-sel="skin">' + icon('palette',20,1.8) + '<span>皮肤</span></button>' +
+         '<button class="sel-act danger" data-sel="del">' + icon('trash',20,1.9) + '<span>删除</span></button>';
+}
+
+const BACK_ICON = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M15 19l-7-7 7-7"/></svg>';
+const X_ICON = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+
+function visibleNoteIds(){
+  return Array.prototype.map.call(
+    document.querySelectorAll('#view .note-card[data-drag-note]'),
+    function(c){ return c.dataset.dragNote; }
+  );
+}
+
+function setSelMode(on){
+  ui.selMode = !!on;
+  if(!ui.selMode) ui.sel.clear();
+  $('#btnBack').innerHTML = ui.selMode ? X_ICON : BACK_ICON;
+  render();
+  updateSelBar();
+}
+
+function toggleSel(id){
+  if(ui.sel.has(id)) ui.sel.delete(id);
+  else ui.sel.add(id);
+  render();
+  updateSelBar();
+}
+
+function updateSelBar(){
+  const bar = $('#selBar');
+  if(!bar) return;
+  const ids = visibleNoteIds();
+  const allOn = ids.length > 0 && ids.every(function(id){ return ui.sel.has(id); });
+  const all = bar.querySelector('[data-sel="all"] span');
+  if(all) all.textContent = allOn ? '取消全选' : '全选';
+  ['move','skin','del'].forEach(function(k){
+    const b = bar.querySelector('[data-sel="' + k + '"]');
+    if(b) b.disabled = ui.sel.size === 0;
+  });
+}
+
+function selAll(){
+  const ids = visibleNoteIds();
+  const allOn = ids.length > 0 && ids.every(function(id){ return ui.sel.has(id); });
+  ui.sel.clear();
+  if(!allOn) ids.forEach(function(id){ ui.sel.add(id); });
+  render();
+  updateSelBar();
+}
+
+function selMove(){
+  const ids = Array.from(ui.sel);
+  if(!ids.length) return;
+  pickFolder('移动 ' + ids.length + ' 条便签到…', new Set(), function(target){
+    const now = Date.now();
+    ids.forEach(function(id){
+      const n = db.notes.find(x => x.id === id);
+      if(n){ n.folderId = target; n.updatedAt = now; }
+    });
+    save();
+    setSelMode(false);
+    toast('已移动到「' + folderPathText(target) + '」');
+  });
+}
+
+function selSkin(){
+  const ids = Array.from(ui.sel);
+  if(!ids.length) return;
+  openSkinPicker(ids);
+}
+
+function selDelete(){
+  const ids = Array.from(ui.sel);
+  if(!ids.length) return;
+  confirmDialog('删除选中的 ' + ids.length + ' 条便签？此操作无法撤销。').then(function(ok){
+    if(!ok) return;
+    const hit = new Set(ids);
+    db.notes = db.notes.filter(function(n){ return !hit.has(n.id); });
+    save();
+    setSelMode(false);
+    toast('已删除 ' + ids.length + ' 条');
+  });
+}
+
+function selPin(on){
+  const ids = Array.from(ui.sel);
+  if(!ids.length) return;
+  ids.forEach(function(id){
+    const n = db.notes.find(x => x.id === id);
+    if(n) n.pinned = on;
+  });
+  save();
+  setSelMode(false);
+  toast(on ? '已置顶 ' + ids.length + ' 条' : '已取消置顶');
+}
+
+function selTag(){
+  const ids = Array.from(ui.sel);
+  if(!ids.length) return;
+  promptDialog('给 ' + ids.length + ' 条便签加标签', '标签名（不用带 #）').then(function(t){
+    if(!t) return;
+    ids.forEach(function(id){
+      const n = db.notes.find(x => x.id === id);
+      if(n && n.tags.indexOf(t) === -1) n.tags.push(t);
+    });
+    save();
+    setSelMode(false);
+    toast('已加 #' + t);
+  });
+}
+
+function openSelMenu(){
+  const n = ui.sel.size;
+  if(!n){ toast('先选几条便签'); return; }
+  menuItems('已选 ' + n + ' 条', [
+    { icon:'pin', label:'置顶', onClick:function(){ selPin(true); } },
+    { icon:'pin', label:'取消置顶', onClick:function(){ selPin(false); } },
+    { icon:'tag', label:'加标签', onClick:selTag }
+  ]);
+}
+
+$('#selBar').innerHTML = selBarHtml();
+$('#selBar').addEventListener('click', function(e){
+  const b = e.target.closest('[data-sel]');
+  if(!b || b.disabled) return;
+  const k = b.dataset.sel;
+  if(k === 'all') selAll();
+  else if(k === 'move') selMove();
+  else if(k === 'skin') selSkin();
+  else if(k === 'del') selDelete();
+});
 
 /* ============================================================
    9. 事件
    ============================================================ */
 $('#view').addEventListener('click', function(e){
   if(ui.suppressClick){ ui.suppressClick = false; return; }
+
+  // 多选态下点卡片 = 勾选/取消勾选，不再打开便签
+  if(e.target.closest('[data-sel-mode]')){
+    if(ui.selMode){ setSelMode(false); return; }
+    if(!db.notes.length){ toast('还没有便签'); return; }
+    ui.view = 'notes';
+    setSelMode(true);
+    return;
+  }
+  if(ui.selMode){
+    const card0 = e.target.closest('[data-drag-note]');
+    if(card0) toggleSel(card0.dataset.dragNote);
+    return;
+  }
 
   const mNote = e.target.closest('[data-more-note]');
   if(mNote) return openNoteMenu(mNote.dataset.moreNote);
@@ -3678,6 +4246,7 @@ document.addEventListener('touchmove', function(e){
 }, { passive:false });
 
 $('#btnBack').onclick = function(){
+  if(ui.selMode){ setSelMode(false); return; }
   const f = getFolder(ui.folderId);
   ui.folderId = f ? (f.parentId || null) : null;
   render();
@@ -3713,7 +4282,10 @@ $('#searchCancel').onclick = function(){
   render();
 };
 
-$('#btnMenu').onclick = openMainMenu;
+$('#btnMenu').onclick = function(){
+  if(ui.selMode) return openSelMenu();
+  openMainMenu();
+};
 $('#btnFab').onclick = function(){
   menuItems('新建', [
     { icon:'note',   label:'新建便签',   onClick:newNote },
@@ -3758,6 +4330,8 @@ $('#edTags').addEventListener('click', function(e){
    否则状态、图标、DOM 类各改一遍，迟早对不上 */
 function setPreview(on){
   const prev = $('#edPreview'), body = $('#edBody');
+  // 切走之前先把没提交的就地编辑落盘，否则那块改动会被重渲染吞掉
+  if(!on && blockEdit) commitBlockEdit();
   // 两边高度差很多，只能按滚动比例带过去；不带的话读到一半点「编辑」会跳回顶部
   const fromEl = ui.preview ? prev : body;
   const fromMax = fromEl.scrollHeight - fromEl.clientHeight;
@@ -3771,6 +4345,7 @@ function setPreview(on){
   btn.innerHTML = icon(ui.preview ? 'edit' : 'eye', 21, 1.9);
   if(ui.preview) renderPreview();
   updateUndoBtns();
+  updateEdTip();
 
   const toEl = ui.preview ? prev : body;
   const toMax = toEl.scrollHeight - toEl.clientHeight;
@@ -3778,7 +4353,7 @@ function setPreview(on){
 }
 $('#edPreviewBtn').onclick = function(){ setPreview(!ui.preview); };
 function renderPreview(){
-  $('#edPreview').innerHTML = '<div class="md-body">' + mdToHtml($('#edBody').value) + '</div>';
+  $('#edPreview').innerHTML = '<div class="md-body">' + mdToHtml($('#edBody').value, true) + '</div>';
   // 正文第一行往往就是「# 和标题同名」的大标题，这时顶部标题框会让同一句话出现两遍。
   // 预览态把它让出来，编辑态照常显示，改标题进编辑即可
   const h = $('#edPreview').querySelector('h1');
@@ -3847,6 +4422,12 @@ $('#fileInput').addEventListener('change', function(e){
   });
 });
 
+document.addEventListener('keydown', function(e){
+  if(e.key === 'Escape' && ui.selMode && !$('#sheetRoot').classList.contains('open')){
+    setSelMode(false);
+  }
+});
+
 document.addEventListener('visibilitychange', function(){
   if(document.hidden && ui.editingId){ clearTimeout(saveTimer); commitEdits(); }
 });
@@ -3862,6 +4443,7 @@ render();
 /* 安卓返回键：逐层关闭，返回 true 表示已消费 */
 window.androidBack = function(){
   if($('#sheetRoot').classList.contains('open')){ closeSheet(); return true; }
+  if(ui.selMode){ setSelMode(false); return true; }
   if(find.on){ closeFind(); return true; }
   if(ui.editingId){ closeEditor(); return true; }
   if(ui.searching){
