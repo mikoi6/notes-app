@@ -25,6 +25,8 @@
   if(look.code  && look.code  !== 'soft')    el.dataset.code   = look.code;
   if(look.size  && look.size  !== 'md')      el.dataset.md     = look.size;
   if(look.lh    && look.lh    !== 'normal')  el.dataset.lh     = look.lh;
+  if(look.fzh   && look.fzh   !== 'sys')     el.dataset.fzh    = look.fzh;
+  if(look.fen   && look.fen   !== 'sys')     el.dataset.fen    = look.fen;
 })();
 </script>
 <style>
@@ -145,7 +147,7 @@ body{
   margin:0;
   background:var(--bg);
   color:var(--text);
-  font-family:-apple-system,BlinkMacSystemFont,"SF Pro SC","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  font-family:var(--f-en),var(--f-zh);
   -webkit-font-smoothing:antialiased;
   overflow:hidden;
   overscroll-behavior:none;
@@ -523,6 +525,21 @@ body.sel-mode #selBar{display:flex}
 /* Markdown 预览 */
 /* 字号 / 行距走变量，设置面板只切 <html data-md> / <html data-lh> 就能整体缩放。
    标题用 em 而不是 px，缩放时层级比例才不会走样 */
+/* 正文字体：中文和英文各一组，用系统字体族而不是内嵌字体文件。
+   中文字体动辄几 MB，base64 塞进单文件 HTML 会把它撑成几十 MB，
+   APK 和首屏都受不了；系统字体族能覆盖住想要的观感差异 */
+:root{
+  --f-zh:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",sans-serif;
+  --f-en:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+:root[data-fzh="song"]{--f-zh:"Songti SC",STSong,SimSun,"Noto Serif CJK SC","Source Han Serif SC",serif}
+:root[data-fzh="kai"]{--f-zh:"Kaiti SC",STKaiti,KaiTi,"Noto Serif CJK SC",serif}
+:root[data-fzh="round"]{--f-zh:"Yuanti SC",YouYuan,"Hiragino Maru Gothic ProN","Microsoft YaHei",sans-serif}
+:root[data-fzh="hei"]{--f-zh:"Heiti SC",STHeiti,"Microsoft YaHei","Noto Sans CJK SC",sans-serif}
+:root[data-fen="serif"]{--f-en:Georgia,"Times New Roman",Times,serif}
+:root[data-fen="humanist"]{--f-en:"Trebuchet MS",Verdana,"Segoe UI",sans-serif}
+:root[data-fen="book"]{--f-en:"Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif}
+
 :root{--md-size:15.5px; --md-lh:1.75}
 :root[data-md="sm"]{--md-size:14.5px}
 :root[data-md="lg"]{--md-size:17px}
@@ -582,6 +599,45 @@ body.sel-mode #selBar{display:flex}
   border-left:3px solid var(--accent);
   border-radius:4px 10px 10px 4px;
 }
+/* ---------- 代码块语法高亮 ----------
+   默认给深色字配浅底（柔和 / 描边 / 色条三种样式）；
+   深色主题、以及强制深底的「终端」样式各写一份亮色配色。
+   两套都是照 VS Code 的 token 色系调的，只是把对比度往上提了一点 */
+.md-body .hl-c{color:#6e7781; font-style:italic}   /* 注释 */
+.md-body .hl-s{color:#a31515}                       /* 字符串 */
+.md-body .hl-k{color:#0b5cad}                       /* 关键字 */
+.md-body .hl-t{color:#267f99}                       /* 类型 / 标签 */
+.md-body .hl-n{color:#098658}                       /* 数字 */
+.md-body .hl-f{color:#795e26}                       /* 函数 / 方法 */
+.md-body .hl-l{color:#0000d0}                       /* true / null 等字面量 */
+.md-body .hl-p{color:#7a3e9d}                       /* 属性 / 键名 */
+:root[data-theme="dark"] .md-body .hl-c,
+:root[data-code="dark"]  .md-body .hl-c{color:#6a9955}
+:root[data-theme="dark"] .md-body .hl-s,
+:root[data-code="dark"]  .md-body .hl-s{color:#ce9178}
+:root[data-theme="dark"] .md-body .hl-k,
+:root[data-code="dark"]  .md-body .hl-k{color:#569cd6}
+:root[data-theme="dark"] .md-body .hl-t,
+:root[data-code="dark"]  .md-body .hl-t{color:#4ec9b0}
+:root[data-theme="dark"] .md-body .hl-n,
+:root[data-code="dark"]  .md-body .hl-n{color:#b5cea8}
+:root[data-theme="dark"] .md-body .hl-f,
+:root[data-code="dark"]  .md-body .hl-f{color:#dcdcaa}
+:root[data-theme="dark"] .md-body .hl-l,
+:root[data-code="dark"]  .md-body .hl-l{color:#569cd6}
+:root[data-theme="dark"] .md-body .hl-p,
+:root[data-code="dark"]  .md-body .hl-p{color:#9cdcfe}
+/* 行内代码也跟着着色：这里只上色不上斜体，不然一行里全是斜的 */
+.md-body code .hl-c{font-style:normal}
+
+/* ---------- 行内格式 ---------- */
+.md-body u{text-decoration:underline; text-underline-offset:2px}
+.md-body mark{
+  background:rgba(var(--accent-rgb),.24); color:inherit;
+  padding:.06em .22em; border-radius:4px;
+}
+.md-body sup,.md-body sub{font-size:.74em; line-height:0}
+
 .md-body hr{border:0; border-top:1px solid var(--line); margin:18px 0}
 .md-body a{color:var(--accent); text-decoration:none}
 .md-body strong{font-weight:700}
@@ -655,8 +711,38 @@ body.sel-mode #selBar{display:flex}
 /* 编辑中的代码块不要被 hover 底色盖住行内高亮 */
 #editor.preview .md-body pre[contenteditable="true"]{background:var(--surface-2)}
 
+/* 格式工具栏：只在源码编辑态出现，横向滚动。
+   放在正文和底栏之间 —— 手机上正好贴着键盘，不用把手指挪到屏幕顶上 */
+#edFmt{
+  flex:none; display:none; align-items:center; gap:2px;
+  padding:5px 10px; overflow-x:auto; scrollbar-width:none;
+  border-top:.5px solid var(--line);
+  -webkit-overflow-scrolling:touch;
+}
+#edFmt::-webkit-scrollbar{display:none}
+/* 只在源码编辑态出现：预览态和查找态都让位给正文 */
+#editor.open:not(.preview):not(.finding) #edFmt{display:flex}
+#edFmt button{
+  flex:none; display:inline-flex; align-items:center; justify-content:center;
+  min-width:33px; height:31px; padding:0 7px;
+  border-radius:8px; color:var(--text); font-size:13.5px; line-height:1;
+}
+#edFmt button:active{background:var(--surface-2)}
+#edFmt button.on{background:var(--soft); color:var(--accent)}
+#edFmt .sep{flex:none; width:1px; height:18px; margin:0 3px; background:var(--line)}
+#edFmt .b{font-weight:800; font-size:15px}
+#edFmt .i{font-style:italic; font-family:Georgia,serif; font-size:15px}
+#edFmt .u{text-decoration:underline; text-underline-offset:2px; font-size:15px}
+#edFmt .s{text-decoration:line-through; font-size:15px}
+#edFmt .mk{
+  background:rgba(var(--accent-rgb),.24); border-radius:4px;
+  padding:1px 5px; font-size:12.5px;
+}
+
 /* 便签内查找 */
-#edFind{display:none; align-items:center; gap:4px; padding:0 10px 10px}
+#edFind{display:none; flex-direction:column; gap:5px; padding:0 10px 10px}
+#editor.finding #edFind{display:flex}
+#edFind .frow{display:flex; align-items:center; gap:4px}
 #editor.finding #edFind{display:flex}
 #edFind input{
   flex:1; min-width:0;
@@ -678,6 +764,23 @@ body.sel-mode #selBar{display:flex}
 #edFind .nav:disabled{opacity:.28}
 #edFind .nav:active:not(:disabled){background:var(--surface-2)}
 #edFind .done{flex:none; font-size:15px; color:var(--accent); padding:0 4px}
+#edFind .rep{flex:none; font-size:13px; color:var(--accent); padding:0 6px; white-space:nowrap}
+#edFind .rep:disabled{color:var(--t2); opacity:.5}
+#edRepRow .fill{flex:1; min-width:0}
+
+/* 颜色选择面板 */
+.cc-row{display:flex; flex-wrap:wrap; gap:10px; padding:2px 0 12px}
+.cc{
+  width:34px; height:34px; border-radius:50%;
+  display:grid; place-items:center;
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.14);
+  color:#fff; font-size:13.5px; font-weight:700;
+}
+.cc:active{transform:scale(.94)}
+.cc-reset{
+  font-size:13px; color:var(--accent);
+  padding:6px 2px;
+}
 
 #edFindView{
   display:none; flex:1; min-height:0; overflow-y:auto;
@@ -920,19 +1023,44 @@ mark.hl{
     </div>
   </header>
   <div id="edFind">
-    <input id="edFindInput" type="search" placeholder="在本便签内查找" autocomplete="off" />
-    <span class="cnt" id="edFindCount"></span>
-    <button class="nav" id="edFindPrev" aria-label="上一个">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>
-    </button>
-    <button class="nav" id="edFindNext" aria-label="下一个">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
-    </button>
-    <button class="done" id="edFindClose">完成</button>
+    <div class="frow">
+      <input id="edFindInput" type="search" placeholder="在本便签内查找" autocomplete="off" />
+      <span class="cnt" id="edFindCount"></span>
+      <button class="nav" id="edFindPrev" aria-label="上一个">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>
+      </button>
+      <button class="nav" id="edFindNext" aria-label="下一个">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+      <button class="done" id="edFindClose">完成</button>
+    </div>
+    <div class="frow" id="edRepRow">
+      <input id="edRepInput" class="fill" type="text" placeholder="替换为…（留空即删除）" autocomplete="off" />
+      <button class="rep" id="edRepOne" disabled>替换</button>
+      <button class="rep" id="edRepAll" disabled>全部替换</button>
+    </div>
   </div>
   <input id="edTitle" placeholder="标题" maxlength="120" />
   <div id="edTags"></div>
   <textarea id="edBody" placeholder="开始输入…（支持 Markdown）"></textarea>
+  <div id="edFmt">
+    <button data-fmt="bold" aria-label="加粗" title="加粗"><span class="b">B</span></button>
+    <button data-fmt="italic" aria-label="斜体" title="斜体"><span class="i">I</span></button>
+    <button data-fmt="under" aria-label="下划线" title="下划线"><span class="u">U</span></button>
+    <button data-fmt="strike" aria-label="删除线" title="删除线"><span class="s">S</span></button>
+    <span class="sep"></span>
+    <button data-fmt="mark" aria-label="高亮" title="高亮"><span class="mk">高亮</span></button>
+    <button data-fmt="color" aria-label="颜色" title="文字颜色 / 高亮颜色">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19h14"/><path d="M9.5 15.5L12 5l2.5 10.5"/><path d="M8.6 12h6.8"/></svg>
+    </button>
+    <button data-fmt="center" aria-label="居中" title="居中">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6.5h16M7.5 12h9M5.5 17.5h13"/></svg>
+    </button>
+    <span class="sep"></span>
+    <button data-fmt="clear" aria-label="清除格式" title="清除格式">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17.5L4.5 15a2.5 2.5 0 0 1 0-3.5l6-6a2.5 2.5 0 0 1 3.5 0l4.5 4.5a2.5 2.5 0 0 1 0 3.5l-3 3"/><path d="M9.5 20h10"/></svg>
+    </button>
+  </div>
   <div id="edFindView"></div>
   <div id="edPreview"></div>
   <footer class="ed-foot">
@@ -999,7 +1127,7 @@ function icon(name, size=22, sw=1.8){
 const STORE_KEY = 'noteapp.v1';
 
 /* 版本号：改这里，build-apk.sh 会拿它和 build.gradle 的 versionName 对账，不一致就拒绝打包 */
-const APP_VERSION = '1.8.2';
+const APP_VERSION = '1.9.0';
 
 /* 便签皮肤：目前只有纯色。颜色定义在 CSS 的 [data-skin="…"] 里，
    sw 只用来画选择面板上的色点 */
@@ -1017,7 +1145,8 @@ const SKINS = [
    全部落到 <html> 的 data-* 属性上，由 CSS 属性选择器接管 —— 跟主题、皮肤
    的驱动方式保持一致：改一个属性，所有引用变量的组件自动跟着变。 */
 const LOOK_KEY = 'noteapp.look';
-const LOOK_DEF = { accent:'orange', skin:'default', table:'grid', code:'soft', size:'md', lh:'normal' };
+const LOOK_DEF = { accent:'orange', skin:'default', table:'grid', code:'soft',
+                   size:'md', lh:'normal', fzh:'sys', fen:'sys' };
 let look = Object.assign({}, LOOK_DEF);
 try{
   const savedLook = JSON.parse(localStorage.getItem(LOOK_KEY) || '{}');
@@ -1050,6 +1179,21 @@ const LOOK_CODES = [
   { id:'bar',  name:'色条' }
 ];
 const LOOK_SIZES = [{ id:'sm', name:'小' }, { id:'md', name:'标准' }, { id:'lg', name:'大' }];
+/* 字体用系统字体族而不是内嵌字体文件：一套中文字体动辄几 MB，
+   base64 塞进单文件 HTML 会把它撑到几十 MB，首屏和 APK 都受不了 */
+const LOOK_FZHS = [
+  { id:'sys',   name:'系统' },
+  { id:'song',  name:'宋体' },
+  { id:'kai',   name:'楷体' },
+  { id:'round', name:'圆体' },
+  { id:'hei',   name:'黑体' }
+];
+const LOOK_FENS = [
+  { id:'sys',     name:'系统' },
+  { id:'serif',   name:'衬线' },
+  { id:'humanist',name:'人文' },
+  { id:'book',    name:'书籍' }
+];
 const LOOK_LHS   = [{ id:'tight', name:'紧凑' }, { id:'normal', name:'标准' }, { id:'loose', name:'宽松' }];
 
 function applyLook(){
@@ -1064,6 +1208,8 @@ function applyLook(){
   put('data-code',   look.code,   'soft');
   put('data-md',     look.size,   'md');
   put('data-lh',     look.lh,     'normal');
+  put('data-fzh',    look.fzh,    'sys');
+  put('data-fen',    look.fen,    'sys');
 }
 function setLook(key, val){
   look[key] = val;
@@ -1175,7 +1321,7 @@ function seed(){
   db.folders.push(work, week, life);
   db.notes.push(
     { id:uid(), folderId:null, title:'欢迎使用便签', tags:['入门'], pinned:true, order:0,
-      content:'## 能做什么\n\n- 点右下角 **+** 新建便签或文件夹\n- 文件夹可以**无限套娃**，比如 工作 / 周报 / 第46周\n- 长按便签卡片可以**拖动排序**\n- 便签区右上「选择」可以**批量**删除、移动、换皮肤\n- 右上角 ⋯ → 置顶、加标签\n- 预览里**点任意段落**就能直接改，不用对着符号找位置\n- 预览里点勾选框直接打勾\n\n> 数据只存在这台设备，记得定期导出备份。',
+      content:'## 能做什么\n\n- 点右下角 **+** 新建便签或文件夹\n- 文件夹可以**无限套娃**，比如 工作 / 周报 / 第46周\n- 长按便签卡片可以**拖动排序**\n- 便签区右上「选择」可以**批量**删除、移动、换皮肤\n- 右上角 ⋯ → 置顶、加标签\n- 预览里**点任意段落**就能直接改，不用对着符号找位置\n- 预览里点勾选框直接打勾\n- 编辑时底部有工具栏：**加粗**、下划线、==高亮==、居中、文字颜色\n- 代码块写上语言名就会着色，比如 \u0060\u0060\u0060js\n\n> 数据只存在这台设备，记得定期导出备份。',
       createdAt:now, updatedAt:now },
     { id:uid(), folderId:work.id, title:'开会要带的材料', tags:['工作','待办'], pinned:false, order:1,
       content:'1. 上季度数据\n2. 竞品对比\n3. 下季度目标拆解',
@@ -1513,6 +1659,223 @@ function viewSearch(){
    围栏代码块、引用（内部可再放列表或表格）、有序 / 无序 / 任务列表（多级）、
    GFM 表格（含 :--: 对齐）、链接、图片、自动链接、分割线、反斜杠转义。
    所有文本先 esc()，链接与图片只放行 http(s)/mailto，避免 XSS。 */
+/* ============================================================
+   3.4 代码块语法高亮
+   ------------------------------------------------------------
+   自己写而不是引 prism/highlight.js：这个 App 是单文件、零依赖，
+   为一个代码块拖进 30KB 的库不划算。用单遍扫描而不是层层 replace —
+   先替换字符串再替换关键字，字符串里的关键字会被二次着色，颜色就串了。
+   ============================================================ */
+function hlWords(str){
+  const o = Object.create(null);
+  String(str || '').split(/\s+/).forEach(function(w){ if(w) o[w] = 1; });
+  return o;
+}
+
+function hlDef(o){
+  return {
+    line: o.line || [],
+    block: o.block || [],
+    quotes: o.quotes || '\'"',
+    triple: o.triple || [],
+    multiline: o.multiline || [],
+    kw: hlWords(o.kw),
+    types: hlWords(o.types),
+    lit: hlWords(o.lit),
+    prop: !!o.prop,
+    tag: !!o.tag,
+    ci: !!o.ci
+  };
+}
+
+const HL_CONF = {
+  js: hlDef({
+    line: ['//'], block: [['/*', '*/']], quotes: '\'"`', multiline: ['`'],
+    kw: 'as async await break case catch class const continue debugger default delete do else export extends finally for from function get if implements import in instanceof interface let new of package private protected public readonly return set static switch throw try type typeof var void while with yield enum declare namespace abstract',
+    types: 'string number boolean any unknown never object symbol bigint function record partial',
+    lit: 'true false null undefined NaN Infinity this super'
+  }),
+  java: hlDef({
+    line: ['//'], block: [['/*', '*/']], quotes: '\'"',
+    kw: 'abstract assert break case catch class const continue default do else enum extends final finally for goto if implements import instanceof interface new package private protected public return static switch synchronized this throw throws transient try var void volatile while fun val object when is in internal override open data sealed companion lateinit require check apply also let run with typealias',
+    types: 'boolean byte char double float int long short void String Integer Long Double Boolean Character Object List Map Set ArrayList HashMap',
+    lit: 'true false null this super'
+  }),
+  c: hlDef({
+    line: ['//'], block: [['/*', '*/']], quotes: '\'"', multiline: ['"'],
+    kw: 'auto break case char const continue default do else enum extern float for goto if inline int long register return short signed sizeof static struct switch typedef union unsigned void volatile while class public private protected virtual namespace template typename new delete using try catch throw import package bool string var func go defer range select chan type map interface impl fn pub mut let match loop where trait self crate mod use dyn async await unsafe constexpr override final abstract extends implements instanceof null throws finally double',
+    types: 'int long short byte char float double boolean void size_t uint8_t uint16_t uint32_t uint64_t int8_t int16_t int32_t int64_t string String Vec Option Result Box i32 i64 u8 u32 f32 f64 usize isize',
+    lit: 'true false null NULL nullptr undefined nil None Some Ok Err self super this'
+  }),
+  py: hlDef({
+    line: ['#'], quotes: '\'"', triple: ['"""', "'''"], multiline: ['"""', "'''"],
+    kw: 'and as assert async await break class continue def del elif else except finally for from global if import in is lambda nonlocal not or pass raise return try while with yield match case self',
+    types: 'str int float bool list dict set tuple bytes complex object range len print open enumerate zip isinstance super type',
+    lit: 'True False None NotImplemented Ellipsis'
+  }),
+  json: hlDef({
+    quotes: '"', multiline: ['"'],
+    lit: 'true false null',
+    prop: true
+  }),
+  sh: hlDef({
+    line: ['#'], quotes: '\'"', multiline: ['"'],
+    kw: 'if then else elif fi for while until do done case esac function return local export readonly declare source echo printf cd ls cat grep sed awk mkdir rm cp mv touch chmod chown sudo exit set unset shift trap read test',
+    types: 'apt yum brew npm npx node python pip git docker kubectl curl wget tar zip unzip',
+    lit: 'true false'
+  }),
+  sql: hlDef({
+    line: ['--'], block: [['/*', '*/']], quotes: "'", multiline: ["'"], ci: true,
+    kw: 'select from where and or not insert into values update set delete create table drop alter add column primary key foreign references join left right inner outer full on group by order having limit offset union all distinct as case when then else end index view database if exists begin commit rollback transaction grant revoke',
+    types: 'int integer bigint smallint decimal numeric float double char varchar text date time datetime timestamp boolean blob count sum avg min max now coalesce',
+    lit: 'null true false'
+  }),
+  css: hlDef({
+    block: [['/*', '*/']], quotes: '\'"', multiline: ['"'],
+    kw: 'important media supports keyframes import font-face root not and or',
+    prop: true
+  }),
+  html: hlDef({
+    block: [['<!--', '-->']], quotes: '\'"', multiline: ['"', "'"],
+    tag: true, prop: true
+  }),
+  yaml: hlDef({
+    line: ['#'], quotes: '\'"', multiline: ['"', "'"],
+    lit: 'true false null yes no on off',
+    prop: true
+  }),
+  md: hlDef({
+    quotes: '`', multiline: ['`'],
+    lit: 'true false'
+  })
+};
+
+/* 语言别名：写 ```js 和 ```javascript 都得认，写错的就退化成纯文本 */
+const HL_ALIAS = {
+  js:'js', javascript:'js', mjs:'js', cjs:'js', jsx:'js', ts:'js', typescript:'js', tsx:'js', node:'js',
+  java:'java', kt:'java', kotlin:'java', scala:'java', groovy:'java',
+  c:'c', h:'c', cpp:'c', 'c++':'c', cc:'c', hpp:'c', cs:'c', csharp:'c', objc:'c',
+  go:'c', golang:'c', rust:'c', rs:'c', swift:'c', php:'c', dart:'c',
+  py:'py', python:'py', py3:'py', python3:'py', rb:'py', ruby:'py',
+  json:'json', jsonc:'json', json5:'json',
+  sh:'sh', bash:'sh', shell:'sh', zsh:'sh', console:'sh', terminal:'sh',
+  sql:'sql', mysql:'sql', pgsql:'sql', sqlite:'sql',
+  css:'css', scss:'css', less:'css', stylus:'css',
+  html:'html', htm:'html', xml:'html', svg:'html', vue:'html', xhtml:'html',
+  yml:'yaml', yaml:'yaml', toml:'yaml', ini:'yaml', conf:'yaml',
+  md:'md', markdown:'md'
+};
+
+const HL_IDENT = /[A-Za-z_$\u00c0-\uffff][\w$\u00c0-\uffff]*/y;
+const HL_NUM = /(?:0[xXbBoO][0-9a-fA-F_]+|[0-9][0-9_]*(?:\.[0-9_]+)?(?:[eE][+-]?[0-9]+)?n?)/y;
+
+function hlSpan(cls, text){
+  if(!text) return '';
+  return '<span class="hl-' + cls + '">' + esc(text) + '</span>';
+}
+
+function highlightCode(src, lang){
+  src = String(src == null ? '' : src);
+  const c = HL_CONF[HL_ALIAS[String(lang || '').toLowerCase()] || ''];
+  if(!c || !src) return esc(src);
+
+  const n = src.length;
+  let out = '', i = 0;
+  const chAt = function(k){ return (k >= 0 && k < n) ? src.charAt(k) : ''; };
+
+  while(i < n){
+    const ch = chAt(i);
+
+    // 块注释优先：/* */ 和 <!-- --> 必须先吃掉，否则里面的引号会被当字符串
+    if(c.block.length){
+      let hit = null;
+      for(let k = 0; k < c.block.length; k++){
+        const pr = c.block[k];
+        if(src.substr(i, pr[0].length) === pr[0]){ hit = pr; break; }
+      }
+      if(hit){
+        const close = src.indexOf(hit[1], i + hit[0].length);
+        const end = close < 0 ? n : close + hit[1].length;
+        out += hlSpan('c', src.slice(i, end)); i = end; continue;
+      }
+    }
+
+    // 行注释
+    if(c.line.length){
+      let hit = '';
+      for(let k = 0; k < c.line.length; k++){
+        if(src.substr(i, c.line[k].length) === c.line[k]){ hit = c.line[k]; break; }
+      }
+      if(hit){
+        let end = src.indexOf('\n', i);
+        if(end < 0) end = n;
+        out += hlSpan('c', src.slice(i, end)); i = end; continue;
+      }
+    }
+
+    // 字符串 / 模板字符串 / 三引号
+    if(c.quotes.indexOf(ch) > -1){
+      let q = ch;
+      if(c.triple.length){
+        const t3 = src.substr(i, 3);
+        if(c.triple.indexOf(t3) > -1) q = t3;
+      }
+      let j = i + q.length;
+      while(j < n){
+        if(src.charAt(j) === '\\'){ j += 2; continue; }
+        if(src.substr(j, q.length) === q){ j += q.length; break; }
+        // 单引号 / 双引号字符串不跨行；模板字符串和三引号才行
+        if(q.length === 1 && src.charAt(j) === '\n' && c.multiline.indexOf(q) === -1) break;
+        j++;
+      }
+      // 后面紧跟冒号的字符串是键名（JSON / YAML），跟字符串值分开着色
+      let scls = 's';
+      if(c.prop && q.length === 1){
+        let k2 = j;
+        while(k2 < n && (src.charAt(k2) === ' ' || src.charAt(k2) === '\t')) k2++;
+        if(src.charAt(k2) === ':') scls = 'p';
+      }
+      out += hlSpan(scls, src.slice(i, j)); i = j; continue;
+    }
+
+    // 数字：前面紧跟字母的不算（x2 里的 2 属于标识符）
+    if(ch >= '0' && ch <= '9' && !/[A-Za-z_$]/.test(chAt(i - 1))){
+      HL_NUM.lastIndex = i;
+      const m = HL_NUM.exec(src);
+      if(m && m.index === i){
+        out += hlSpan('n', m[0]); i += m[0].length; continue;
+      }
+    }
+
+    // 标识符 → 关键字 / 类型 / 字面量 / 函数 / 属性
+    if(/[A-Za-z_$\u00c0-\uffff]/.test(ch)){
+      HL_IDENT.lastIndex = i;
+      const m = HL_IDENT.exec(src);
+      if(m && m.index === i){
+        const w = m[0];
+        const key = c.ci ? w.toLowerCase() : w;
+        let cls = '';
+        if(c.kw[key]) cls = 'k';
+        else if(c.types[key]) cls = 't';
+        else if(c.lit[key]) cls = 'l';
+        else{
+          let k = i + w.length;
+          while(k < n && (src.charAt(k) === ' ' || src.charAt(k) === '\t')) k++;
+          const nx = src.charAt(k);
+          if(nx === '(') cls = 'f';                                  // 函数调用
+          else if(c.tag && /[<\/]/.test(chAt(i - 1))) cls = 't';      // HTML 标签名
+          else if(c.prop && (nx === ':' || nx === '=')) cls = 'p';    // 属性 / 键名
+        }
+        out += cls ? hlSpan(cls, w) : esc(w);
+        i += w.length; continue;
+      }
+    }
+
+    out += esc(ch); i++;
+  }
+  return out;
+}
+
 function mdToHtml(src, map){
   if(!src || !src.trim()) return '<p class="md-empty">还没有内容</p>';
 
@@ -1533,7 +1896,7 @@ function mdToHtml(src, map){
     const escs = [];
 
     // 反斜杠转义先抽走，免得 \* 被当成强调
-    s = s.replace(/\\([\\`*_{}\[\]()#+\-.!|~>])/g, function(_, c){
+    s = s.replace(/\\([\\`*_{}\[\]()#+\-.!|~>=])/g, function(_, c){
       escs.push(c); return '\u0001' + (escs.length - 1) + '\u0001';
     });
 
@@ -1567,6 +1930,36 @@ function mdToHtml(src, map){
     s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
     s = s.replace(/(^|[\s(（])_([^_\n]+)_(?=$|[\s)）.。,，!！?？:：;；])/g, '$1<em>$2</em>');
     s = s.replace(/~~([^~\n]+)~~/g, '<del>$1</del>');
+
+    // 下划线 / 高亮的短语法：工具栏插的就是这两个，手写也认
+    s = s.replace(/\+\+([^+\n]+)\+\+/g, '<u>$1</u>');
+    s = s.replace(/==([^=\n]+)==/g, '<mark>$1</mark>');
+
+    /* 受限内联 HTML。
+       便签正文可能来自导入的 md，不能把任意 HTML 原样放出来 ——
+       这里只认下面几个标签，且 style 只接受 color / background 的十六进制色值，
+       其余尖括号到这一步仍然是转义状态 */
+    s = s.replace(/&lt;mark\s+style=&quot;background:\s*(#[0-9a-fA-F]{3,8})&quot;\s*&gt;/gi,
+      function(_, c){ return '<mark style="background:' + c + '">'; });
+    /* span 单独处理：只有带 color 的开标签才放行，闭合标签按配平还原。
+       否则原文里孤零零一个 </span> 也会被还原，虽然无害，但标签就不平衡了 */
+    let spanOpen = 0;
+    s = s.replace(/&lt;(\/?)span(?:\s+style=&quot;color:\s*(#[0-9a-fA-F]{3,8})&quot;)?\s*&gt;/gi,
+      function(all, close, col){
+        if(close){
+          if(!spanOpen) return all;
+          spanOpen--;
+          return '</span>';
+        }
+        if(!col) return all;
+        spanOpen++;
+        return '<span style="color:' + col + '">';
+      });
+    s = s.replace(/&lt;(\/?)(u|mark|sup|sub)(\s*\/?)&gt;/gi, function(_, close, name){
+      const n = String(name).toLowerCase();
+      return close ? '</' + n + '>' : '<' + n + '>';
+    });
+    s = s.replace(/&lt;br\s*\/?&gt;/gi, '<br />');
 
     s = s.replace(/\u0000(\d+)\u0000/g, function(_, i){ return hold[+i]; });
     s = s.replace(/\u0001(\d+)\u0001/g, function(_, i){ return escs[+i]; });
@@ -1710,18 +2103,20 @@ function mdToHtml(src, map){
       const line = lines[i];
       const start = i;
 
-      // 围栏代码块（``` 或 ~~~）
-      const fence = line.match(/^\s*(```|~~~)/);
+      // 围栏代码块（``` 或 ~~~），后面跟的语言名决定怎么着色
+      const fence = line.match(/^\s*(```|~~~)\s*([\w+#.\-]*)/);
       if(fence){
         flushPara();
         const mark = fence[1];
+        const lang = (fence[2] || '').toLowerCase();
         const buf = [];
         i++;
         while(i < lines.length && lines[i].indexOf(mark) !== 0 && !/^\s*(```|~~~)\s*$/.test(lines[i])){
           buf.push(lines[i]); i++;
         }
         i++;
-        emit('<pre><code>' + esc(buf.join('\n')) + '</code></pre>', start, i);
+        emit('<pre><code' + (lang ? ' class="lang-' + esc(lang) + '"' : '') + '>' +
+             highlightCode(buf.join('\n'), lang) + '</code></pre>', start, i);
         continue;
       }
 
@@ -1746,6 +2141,16 @@ function mdToHtml(src, map){
         const lv = m[1].length;
         i++;
         emit('<h' + lv + '>' + inline(m[2]) + '</h' + lv + '>', start, i);
+        continue;
+      }
+
+      /* 居中：整行 -> 文字 <- 或 <center>文字</center>。
+         -> 不会被列表规则抢走 —— 列表要求 - 后面跟空格，这里紧跟的是 > */
+      const cen = line.match(/^\s*(?:->\s?([\s\S]*?)\s?<-|<center>([\s\S]*?)<\/center>)\s*$/);
+      if(cen){
+        flushPara();
+        i++;
+        emit('<p class="ta-c">' + inline(cen[1] != null ? cen[1] : cen[2]) + '</p>', start, i);
         continue;
       }
 
@@ -2210,6 +2615,10 @@ function updateFindCount(){
   $('#edFindCount').textContent = !find.q ? '' : (find.total ? (find.idx + 1) + '/' + find.total : '无');
   $('#edFindPrev').disabled = !find.total;
   $('#edFindNext').disabled = !find.total;
+  // 一处都没命中时「替换」点了也没意义，直接置灰
+  const one = $('#edRepOne'), all = $('#edRepAll');
+  if(one) one.disabled = !find.total;
+  if(all) all.disabled = !find.total;
 }
 
 function scrollFindTo(){
@@ -2232,6 +2641,194 @@ function gotoFind(delta){
   updateFindCount();
   scrollFindTo();
 }
+
+/* ---------- 查找替换 ---------- */
+function repValue(){ return $('#edRepInput').value; }
+
+/* 替换当前这一处。位置来自 find.hits —— 它是按小写比对出来的，
+   所以这里用长度截取而不是字符串替换，大小写不同的命中也能正确落刀 */
+function replaceOne(){
+  if(!find.q || !find.total) return;
+  const pos = find.hits[Math.min(find.idx, find.total - 1)];
+  if(pos == null) return;
+  const ta = $('#edBody');
+  const v = ta.value, r = repValue();
+  maybeUndoSnapshot();
+  ta.value = v.slice(0, pos) + r + v.slice(pos + find.q.length);
+  updateCount();
+  scheduleSave();
+  // 重算命中后 idx 停在原位 = 自动指向下一处，连着点就是一路替下去
+  renderFind(false);
+  ta.focus();
+}
+
+/* 全部替换：从后往前按位置改，前面的下标才不会被打乱。
+   不用 split/join —— 那样会把大小写不同的命中漏掉 */
+function replaceAllHits(){
+  if(!find.q || !find.total) return;
+  const ta = $('#edBody');
+  const hits = find.hits.slice(), r = repValue(), q = find.q;
+  let v = ta.value;
+  maybeUndoSnapshot();
+  for(let k = hits.length - 1; k >= 0; k--){
+    const p = hits[k];
+    v = v.slice(0, p) + r + v.slice(p + q.length);
+  }
+  ta.value = v;
+  updateCount();
+  scheduleSave();
+  renderFind(true);
+  toast('替换了 ' + hits.length + ' 处');
+  ta.focus();
+}
+
+/* ---------- 格式工具栏 ----------
+   全部作用于源码 textarea 的选区：包一层标记，再把选区放回去。
+   没选中文字时插入一对空标记，光标落在中间，接着打就行。
+   已经包着同样标记再点一次 = 拆掉，不然连点两下会变成 ****文字**** */
+let fmtSel = null;                       // 打开颜色面板前的选区，防止失焦丢失
+
+const FMT_PAIRS = {
+  bold:   ['**',  '**',  '粗体'],
+  italic: ['*',   '*',   '斜体'],
+  strike: ['~~',  '~~',  '删除线'],
+  under:  ['<u>', '</u>', '下划线'],
+  mark:   ['==',  '==',  '高亮']
+};
+
+function taRange(){
+  const ta = $('#edBody');
+  if(fmtSel && fmtSel.ta === ta) return fmtSel;
+  return { ta: ta, a: ta.selectionStart, b: ta.selectionEnd };
+}
+
+function afterFmt(a, b){
+  updateCount();
+  scheduleSave();
+  $('#edBody').focus();
+  if(a != null){
+    try{ $('#edBody').setSelectionRange(a, b == null ? a : b); }catch(e){}
+  }
+}
+
+function wrapSelection(open, close, ph){
+  const r = taRange();
+  const ta = r.ta, a = r.a, b = r.b, v = ta.value;
+  const sel = v.slice(a, b) || ph || '';
+  // 记的是「改之前」的状态，否则第一次用工具栏就撤不回去
+  maybeUndoSnapshot();
+
+  // 选区两边已经是这对标记 → 拆掉
+  if(a >= open.length && v.slice(a - open.length, a) === open && v.slice(b, b + close.length) === close){
+    ta.value = v.slice(0, a - open.length) + v.slice(a, b) + v.slice(b + close.length);
+    afterFmt(a - open.length, b - open.length);
+    return;
+  }
+  ta.value = v.slice(0, a) + open + sel + close + v.slice(b);
+  afterFmt(a + open.length, a + open.length + sel.length);
+  fmtSel = null;
+}
+
+/* 居中：作用在选区覆盖的每一整行上 */
+function toggleCenter(){
+  const r = taRange();
+  const ta = r.ta, v = ta.value;
+  maybeUndoSnapshot();
+  let ls = v.lastIndexOf('\n', r.a - 1) + 1;
+  let le = v.indexOf('\n', r.b);
+  if(le < 0) le = v.length;
+
+  const lines = v.slice(ls, le).split('\n');
+  const done = lines.map(function(l){
+    const m = l.match(/^\s*->\s?([\s\S]*?)\s?<-\s*$/);
+    if(m) return m[1];                                  // 已经是居中 → 取消
+    const t = l.trim();
+    return t ? '-> ' + t + ' <-' : l;
+  }).join('\n');
+
+  ta.value = v.slice(0, ls) + done + v.slice(le);
+  afterFmt(ls + done.length);
+}
+
+/* 清除格式：把选区里成对的标记剥掉 */
+function stripFmt(t){
+  return String(t)
+    .replace(/\*\*([^*\n]+)\*\*/g, '$1')
+    .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1$2')
+    .replace(/~~([^~\n]+)~~/g, '$1')
+    .replace(/==([^=\n]+)==/g, '$1')
+    .replace(/\+\+([^+\n]+)\+\+/g, '$1')
+    .replace(/<u>([\s\S]*?)<\/u>/g, '$1')
+    .replace(/<mark[^>]*>([\s\S]*?)<\/mark>/g, '$1')
+    .replace(/<span style="color:#[0-9a-fA-F]{3,8}">([\s\S]*?)<\/span>/g, '$1')
+    .replace(/<\/?(?:u|mark|span|sup|sub)>/g, '')
+    .replace(/^\s*->\s?([\s\S]*?)\s?<-\s*$/gm, '$1');
+}
+
+function clearFormat(){
+  const r = taRange();
+  const ta = r.ta, v = ta.value;
+  if(r.a === r.b){ toast('先选中要清除格式的文字'); return; }
+  const sel = v.slice(r.a, r.b);
+  const out = stripFmt(sel);
+  if(out === sel){ toast('这段没有可清除的格式'); return; }
+  maybeUndoSnapshot();
+  ta.value = v.slice(0, r.a) + out + v.slice(r.b);
+  afterFmt(r.a, r.a + out.length);
+}
+
+/* 文字颜色 / 高亮颜色 */
+const TEXT_COLORS = ['#e03131', '#e8890c', '#2f9e44', '#1c7ed6', '#7048e8', '#c2255c', '#5c636a', '#111111'];
+const MARK_COLORS = ['#ffe066', '#b2f2bb', '#a5d8ff', '#fcc2d7', '#ffd8a8', '#e5dbff'];
+
+function openColorSheet(){
+  // 面板一开 textarea 就失焦，先把选区记下来
+  const ta = $('#edBody');
+  fmtSel = { ta: ta, a: ta.selectionStart, b: ta.selectionEnd };
+
+  let h = '<h4>文字颜色</h4><div class="cc-row" data-cc="color">';
+  TEXT_COLORS.forEach(function(c){
+    h += '<button class="cc" data-val="' + c + '" style="background:' + c + '" aria-label="' + c + '">' +
+         '<span>A</span></button>';
+  });
+  h += '</div><h4>高亮颜色</h4><div class="cc-row" data-cc="mark">';
+  MARK_COLORS.forEach(function(c){
+    h += '<button class="cc" data-val="' + c + '" style="background:' + c + '" aria-label="' + c + '"></button>';
+  });
+  h += '</div><div class="cc-row" data-cc="reset">' +
+       '<button class="cc-reset" data-val="">恢复默认色</button></div>';
+  openSheet(h);
+
+  const root = $('#sheetRoot');
+  root.querySelectorAll('[data-cc] [data-val]').forEach(function(b){
+    b.onclick = function(){
+      const kind = b.parentNode.dataset.cc;
+      const col = b.dataset.val;
+      closeSheet();
+      if(kind === 'color'){
+        wrapSelection('<span style="color:' + col + '">', '</span>', '文字');
+        toast('已上色，改成别的颜色需要先清除格式');
+      }else if(kind === 'mark'){
+        wrapSelection('<mark style="background:' + col + '">', '</mark>', '高亮');
+      }else{
+        clearFormat();
+      }
+      fmtSel = null;
+    };
+  });
+}
+
+/* 工具栏按钮 */
+document.querySelectorAll('#edFmt [data-fmt]').forEach(function(b){
+  b.onclick = function(){
+    const k = b.dataset.fmt;
+    if(k === 'center'){ toggleCenter(); return; }
+    if(k === 'clear'){ clearFormat(); return; }
+    if(k === 'color'){ openColorSheet(); return; }
+    const p = FMT_PAIRS[k];
+    if(p) wrapSelection(p[0], p[1], p[2]);
+  };
+});
 
 /* ============================================================
    5. 菜单 / 对话框 / 提示
@@ -3550,6 +4147,9 @@ function openLookSheet(){
   h += lookSegHtml('代码块', 'code', LOOK_CODES, look.code);
   h += lookSegHtml('正文字号', 'size', LOOK_SIZES, look.size);
   h += lookSegHtml('行距', 'lh', LOOK_LHS, look.lh);
+  h += lookSegHtml('中文字体', 'fzh', LOOK_FZHS, look.fzh);
+  h += lookSegHtml('英文字体', 'fen', LOOK_FENS, look.fen);
+  h += '<div class="look-tip">用系统里已装的字体族切换，不内嵌字体文件 —— 否则单文件会涨到几十 MB。设备上缺哪套就自动回退到系统默认。</div>';
 
   h += '<div class="pd-actions" style="padding-top:8px">' +
        '<button class="pd-btn" id="lookReset">恢复默认</button>' +
@@ -3685,7 +4285,7 @@ function aboutApp(){
   openSheet('<h4>关于这个 App</h4><div class="pd-msg">' +
     '版本 <b>' + APP_VERSION + '</b><br>' +
     '单文件便签应用，数据存在本地。<br><br>' +
-    '手势与快捷键：<br>· 长按便签卡片 → 拖动排序<br>· 便签区右上「选择」→ 批量删除 / 移动 / 换皮肤<br>· 点卡片右侧 ⋯ → 置顶 / 标签 / 移动 / 删除<br>· 预览态点任意段落 → 就地改，不用切回源码<br>· 预览态点勾选框 → 直接打勾<br>· 编辑器右上角 ⋯ → 背景皮肤<br>· 编辑器右上角眼睛 → 切回 Markdown 源码<br>· 顶部标签条 → 按标签筛选<br>· 主菜单 ⋯ → 个性化设置（主题色 / 表格 / 代码块 / 字号）</div>' +
+    '手势与快捷键：<br>· 长按便签卡片 → 拖动排序<br>· 便签区右上「选择」→ 批量删除 / 移动 / 换皮肤<br>· 点卡片右侧 ⋯ → 置顶 / 标签 / 移动 / 删除<br>· 预览态点任意段落 → 就地改，不用切回源码<br>· 预览态点勾选框 → 直接打勾<br>· 编辑态底部工具栏 → 加粗 / 斜体 / 下划线 / 删除线 / 高亮 / 居中 / 文字颜色<br>· 编辑器放大镜 → 查找，还能替换（替换框留空就是删除）<br>· 代码块写 ```语言名 → 按语言着色（js / python / java / sql / html / css 等）<br>· 编辑器右上角 ⋯ → 背景皮肤<br>· 编辑器右上角眼睛 → 切回 Markdown 源码<br>· 顶部标签条 → 按标签筛选<br>· 主菜单 ⋯ → 个性化设置（主题色 / 表格 / 代码块 / 字号 / 字体）</div>' +
     '<div class="pd-actions"><button class="pd-btn primary" id="abOk2">知道了</button></div>');
   $('#abOk2').onclick = function(){ closeSheet(); };
 }
@@ -3708,6 +4308,22 @@ function updateEdTip(){
 }
 
 /* 文本节点里的 Markdown 元字符要转义，否则「a*b」这种内容改完再渲染就跑版 */
+/* 把浏览器规范化过的颜色（rgb(...) / #abc）转回 #rrggbb。
+   就地编辑提交时要从 DOM 的 inline style 里把颜色捞回来 */
+function cssColorHex(v){
+  v = String(v || '').trim();
+  if(!v) return null;
+  let m = v.match(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/);
+  if(m) return '#' + m[1].toLowerCase();
+  m = v.match(/^rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+  if(m){
+    return '#' + [1, 2, 3].map(function(k){
+      return ('0' + Math.min(255, +m[k]).toString(16)).slice(-2);
+    }).join('');
+  }
+  return null;
+}
+
 function mdEscInline(t){
   return String(t).replace(/\u00a0/g, ' ').replace(/([\\`*_\[\]])/g, '\\$1');
 }
@@ -3733,6 +4349,22 @@ function mdInlineSrc(node){
     if(tag === 'strong' || tag === 'b'){ out += '**' + mdInlineSrc(ch) + '**'; return; }
     if(tag === 'em' || tag === 'i'){ out += '*' + mdInlineSrc(ch) + '*'; return; }
     if(tag === 'del' || tag === 's' || tag === 'strike'){ out += '~~' + mdInlineSrc(ch) + '~~'; return; }
+    if(tag === 'u'){ out += '<u>' + mdInlineSrc(ch) + '</u>'; return; }
+    if(tag === 'sup'){ out += '<sup>' + mdInlineSrc(ch) + '</sup>'; return; }
+    if(tag === 'sub'){ out += '<sub>' + mdInlineSrc(ch) + '</sub>'; return; }
+    if(tag === 'mark'){
+      // 没带颜色就还原成 == 短语法，带颜色的保留标签
+      const bg = cssColorHex(ch.style.backgroundColor || ch.style.background);
+      const txt = mdInlineSrc(ch);
+      out += bg ? '<mark style="background:' + bg + '">' + txt + '</mark>' : '==' + txt + '==';
+      return;
+    }
+    if(tag === 'span'){
+      const co = cssColorHex(ch.style.color);
+      const txt = mdInlineSrc(ch);
+      out += co ? '<span style="color:' + co + '">' + txt + '</span>' : txt;
+      return;
+    }
     if(tag === 'a'){
       const href = ch.getAttribute('href') || '';
       const txt = mdInlineSrc(ch);
@@ -3826,6 +4458,10 @@ function mdQuoteSrc(bq){
 function blockSrcLines(el){
   const tag = el.tagName;
   if(tag === 'PRE') return mdPreSrc(el);
+  // 居中段落写成一行 -> 文字 <-，和解析端一一对应
+  if(tag === 'P' && el.classList.contains('ta-c')){
+    return ['-> ' + mdInlineSrc(el).replace(/\n/g, ' ').trim() + ' <-'];
+  }
   if(tag === 'UL' || tag === 'OL'){ const out = []; mdListSrc(el, 0, out); return out; }
   if(tag === 'BLOCKQUOTE') return mdQuoteSrc(el);
   if(el.classList.contains('md-table') || tag === 'TABLE') return mdTableSrc(el);
@@ -3870,6 +4506,13 @@ function startBlockEdit(el, ev){
   if(el.classList.contains('md-table')){
     el.querySelectorAll('th,td').forEach(function(c){ c.setAttribute('tabindex', '-1'); });
   }
+  /* 代码块先把高亮拆成纯文本：在 span 里打字颜色不会跟着变，
+     光标还容易钻进某个 token 中间，编辑起来比没有着色还难受 */
+  if(el.tagName === 'PRE'){
+    const cd = el.querySelector('code');
+    if(cd) cd.innerHTML = esc(cd.textContent);
+  }
+
   blockEdit = { el: el, bs: bs, be: be, scroll: $('#edPreview').scrollTop };
   el.setAttribute('contenteditable', 'true');
   el.classList.add('blk-edit');
@@ -4406,6 +5049,13 @@ $('#edFindBtn').onclick = function(){ find.on ? closeFind() : openFind(''); };
 $('#edFindClose').onclick = closeFind;
 $('#edFindPrev').onclick = function(){ gotoFind(-1); };
 $('#edFindNext').onclick = function(){ gotoFind(1); };
+$('#edRepOne').onclick = replaceOne;
+$('#edRepAll').onclick = replaceAllHits;
+// 替换框里回车 = 替换这一处并跳到下一处，连续敲回车就一路替下去
+$('#edRepInput').addEventListener('keydown', function(e){
+  if(e.key === 'Enter'){ e.preventDefault(); replaceOne(); }
+  if(e.key === 'Escape'){ e.preventDefault(); closeFind(); }
+});
 $('#edFindInput').addEventListener('input', function(){ renderFind(true); });
 $('#edFindInput').addEventListener('keydown', function(e){
   if(e.key === 'Enter'){ e.preventDefault(); gotoFind(e.shiftKey ? -1 : 1); }
